@@ -1,0 +1,25 @@
+// Archivo: frontend/tsconfig.json
+// Razón: Configura el compilador de TypeScript para garantizar código libre de errores de tipado, habilitando resoluciones de módulos modernas.
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+
+    /* Modo Empaquetador */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+
+    /* Limpieza y Reglas Estrictas */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true
+  },
+  "include": ["src"]
+}

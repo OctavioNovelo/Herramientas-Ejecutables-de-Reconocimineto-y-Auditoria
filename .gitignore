@@ -1,0 +1,18 @@
+*.txt
+*.xml
+
+# Rust / Tauri
+frontend/src-tauri/target/
+frontend/src-tauri/gen/schemas/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/package-lock.json  # opcional, algunos prefieren versionarlo — tu decisión
+
+# Python
+__pycache__/
+*.pyc
+
+# Resultados de escaneo (probablemente no quieres versionar datos de red reales)
+utils/Resultados/

@@ -1,0 +1,24 @@
+# Archivo: frontend/src-tauri/Cargo.toml
+# Razón: Declara las dependencias Rust necesarias para el motor de Tauri (acceso a ficheros, info de sistema, etc.).
+
+[package]
+name = "hera-app"
+version = "0.1.0"
+description = "HERA Network Reconnaissance Desktop Interface"
+authors = ["Antigravity"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.0.3", features = [] }
+
+[dependencies]
+tauri = { version = "2.0.6", features = [] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "z"
+strip = true
