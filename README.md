@@ -1,10 +1,12 @@
 # HERA — Auditoría y Análisis de Red
 
-Herramienta de auditoría de red que orquesta escaneos con Nmap, procesa sus resultados y
-los presenta de dos formas: una interfaz de línea de comandos (CLI) y una aplicación de
+Herramienta de auditoría de red que orquesta, procesa y
+presenta la informacion de dos formas: una interfaz de línea de comandos (CLI) y una aplicación de
 escritorio nativa (Tauri). Ambas interfaces comparten exactamente la misma lógica de
-escaneo, elevación de privilegios y análisis de vulnerabilidades — no hay dos
+escaneo, encontrar vulnerabilidades, penetracion, elevación de privilegios y análisis de vulnerabilidades — no hay dos
 implementaciones divergentes del mismo comportamiento.
+
+El objetivo principal de HERA es proporcionar una postura de seguridad a cualquiera interesado en proteger su entorno ya sea de trabajo o de uso diario. 
 
 El software actúa como un orquestador: recoge la entrada del usuario a través de una UI,
 la valida y sanitiza, detecta el sistema operativo (Windows/Linux/macOS) y ajusta la
@@ -19,9 +21,9 @@ El proyecto está en desarrollo activo. HERA está pensado como un orquestador d
 
 | Categoría | Herramienta(s) | Estado |
 |---|---|---|
-| Escaneo / reconocimiento | Nmap | **Implementado** — 8 modalidades de escaneo, dashboard y pestaña dedicada |
-| Vulnerar (explotación) | Por definir | **No implementado** — planeado, sin desarrollo iniciado |
-| Pentesting | Por definir | **No implementado** — planeado, sin desarrollo iniciado |
+| Escanear | Nmap | **Implementado** — 8 modalidades de escaneo, dashboard y pestaña dedicada |
+| Vulnerar (encontrar vulnerabilidades) | Nikto | **No implementado** — planeado, sin desarrollo iniciado |
+| Penetrar | Por definir | **No implementado** — planeado, sin desarrollo iniciado |
 
 Todo lo construido hasta ahora (CLI, interfaz nativa, elevación de privilegios, parseo de
 resultados) está diseñado sobre el módulo de Nmap, pero la arquitectura de `tools/`
@@ -34,28 +36,21 @@ Ambas interfaces actuales son funcionales:
   **Linux y Windows**.
 - **Interfaz nativa** (Tauri + TypeScript vanilla): operativa, incluye dashboard combinado
   y una pestaña de escaneo por categoría con ejecución y visualización de resultados. El
-  desarrollo y las pruebas de la interfaz gráfica se han hecho en **Linux (CachyOS)**;
-  todavía no se ha probado la GUI en Windows ni macOS, aunque el código contempla ambos
-  (detección de OS, elevación de privilegios específica por sistema, empaquetado NSIS
-  para Windows).
+  desarrollo y las pruebas de la interfaz gráfica se han hecho en **Linux**;
+  todavía no se ha probado la GUI en Windows ni macOS, aunque el código contempla ambos.
 
 Lo que **no** está implementado todavía:
 
-- Herramientas de explotación/vulneración y pentesting (ver tabla arriba) — HERA hoy
+- Herramientas de explotación/vulneración y pentesting — HERA hoy
   solo audita y reporta, no ataca ni explota nada.
-- Análisis de resultados asistido por IA (mencionado como visión futura del proyecto,
-  no iniciado).
+- Análisis de resultados asistido por IA.
 - Pruebas de la interfaz gráfica en Windows y macOS (el CLI sí se ha probado en Windows).
 
-**Nota sobre "Personalizado"**: el escaneo personalizado (protocolo, tipo TCP, timing,
-puertos) **está completamente implementado y validado** en ambas interfaces — no es una
-funcionalidad pendiente ni tiene limitaciones conocidas de validación.
 
 ## ¿Qué hace HERA hoy?
 
-De las 3 categorías de herramientas planeadas (ver tabla de estado arriba), solo
-**Escaneo** está implementada. HERA le pide a Nmap que audite una red local (no una IP
-pública — ver nota de diseño más abajo) bajo distintas modalidades:
+De las 3 categorías de herramientas planeadas, solo
+**Escanear** está implementada. HERA le pide a Nmap que audite una red local bajo distintas modalidades:
 
 | Categoría | Qué hace |
 |---|---|
@@ -68,15 +63,11 @@ pública — ver nota de diseño más abajo) bajo distintas modalidades:
 | Full Pack | Combina todas las técnicas anteriores en un solo escaneo exhaustivo |
 | Personalizado | Control manual de protocolo (TCP/UDP/SCTP), tipo de escaneo TCP, timing y puertos — implementado en ambas interfaces |
 
-**Nota de diseño importante:** por defecto, HERA audita la **subred local** (ej.
-`192.168.1.0/24`), detectada automáticamente vía `ip route` (Linux/macOS) o `ipconfig`
+**Nota de diseño importante:** por defecto, HERA audita la **subred local**, detectada automáticamente vía `ip route` (Linux/macOS) o `ipconfig`
 (Windows) — el objetivo es mapear los dispositivos de tu propia red (routers, IoT,
 laptops, etc.). Las 8 categorías de escaneo también aceptan un **objetivo específico**
 opcional (una IP, un rango, un CIDR o un hostname — cualquier formato que Nmap acepte),
-que reemplaza la subred local detectada solo para esa ejecución. Sigue aplicando el mismo
-principio: escanea únicamente sistemas de tu propiedad o con autorización explícita —
-escanear una IP pública desde dentro de la LAN no revela nada útil por el NAT, y escanear
-redes ajenas sin autorización es ilegal (ver Aviso Ético al final).
+que reemplaza la subred local detectada solo para esa ejecución.
 
 ## Por qué Tauri (y cómo funciona)
 
@@ -89,8 +80,7 @@ sistema operativo) en vez de alternativas como Electron. Las razones concretas:
   invocan `python3` como subproceso y le piden que corra ese mismo código — no hubo que
   portar `utils/parser.py` ni `utils/elevation.py` a Rust o TypeScript. Esto redujo
   drásticamente el trabajo de construir la GUI y, más importante, evita que CLI e
-  interfaz gráfica diverjan en su comportamiento (ver más abajo, "Por qué el análisis
-  vive en Python").
+  interfaz gráfica diverjan en su comportamiento.
 - **Binarios mucho más livianos que Electron.** Tauri no empaqueta un motor Chromium
   completo dentro de la app — usa el WebView que el sistema operativo ya trae
   (WebKitGTK en Linux, WebView2 en Windows, WebKit en macOS). Esto resulta en
@@ -215,6 +205,541 @@ npm run tauri dev
 cd frontend
 npm run tauri build
 ```
+### AVISO PARA MI EQUIPO
+
+Este semestre trabajaremos con GitHub de la forma correcta. Cada error, cada bug, cada nueva funcionalidad, mejora o cambio importante se desarrollará en una **branch aparte** y, una vez que esté terminado y probado, se integrará mediante un **Pull Request** a la rama principal.
+
+La idea es mantener `main` siempre funcional y evitar que el trabajo de una persona interfiera directamente con el de los demás.
+
+---
+
+## 🌿 ¿Cómo trabajaremos?
+
+Nuestro flujo será:
+
+```text
+main
+ │
+ ├── feature/nueva-funcionalidad
+ │
+ ├── fix/error-en-algo
+ │
+ ├── refactor/mejora-codigo
+ │
+ └── docs/actualizar-documentacion
+             │
+             ↓
+        Pull Request
+             │
+             ↓
+          Revisión
+             │
+             ↓
+        Merge → main
+```
+
+### Regla principal
+
+> **NO trabajaremos directamente sobre `main`.**
+
+Cada cambio debe tener su propia branch.
+
+Por ejemplo:
+
+```text
+feature/nueva-gui
+fix/tauri-build
+fix/error-login
+refactor/modulo-auditoria
+docs/actualizar-readme
+test/pruebas-api
+```
+
+---
+
+# 📌 1. Antes de empezar a trabajar
+
+Siempre debemos asegurarnos de tener la versión más reciente de `main`.
+
+```bash
+git switch main
+git pull
+```
+
+---
+
+# 🌱 2. Crear una nueva branch
+
+Para crear una branch y movernos automáticamente a ella:
+
+```bash
+git switch -c nombre-de-la-branch
+```
+
+Por ejemplo:
+
+```bash
+git switch -c fix/tauri-build
+```
+
+Esto crea:
+
+```text
+main
+ │
+ └── fix/tauri-build ← estamos aquí
+```
+
+### Convención para nombrar branches
+
+Utilizaremos prefijos para saber qué tipo de trabajo contiene cada branch:
+
+| Prefijo     | Uso                                                  | Ejemplo                  |
+| ----------- | ---------------------------------------------------- | ------------------------ |
+| `feature/`  | Nueva funcionalidad                                  | `feature/nueva-gui`      |
+| `fix/`      | Corrección de errores                                | `fix/tauri-build`        |
+| `refactor/` | Mejorar/reorganizar código sin cambiar funcionalidad | `refactor/backend`       |
+| `test/`     | Pruebas                                              | `test/api-tests`         |
+| `docs/`     | Documentación                                        | `docs/actualizar-readme` |
+
+Los nombres deben ser **claros y descriptivos**.
+
+---
+
+# 🔀 3. Cambiar de branch
+
+Para movernos a otra branch:
+
+```bash
+git switch nombre-de-la-branch
+```
+
+Ejemplo:
+
+```bash
+git switch main
+```
+
+o:
+
+```bash
+git switch fix/tauri-build
+```
+
+Para ver todas nuestras branches locales:
+
+```bash
+git branch
+```
+
+La branch que tiene `*` es la branch en la que estamos actualmente.
+
+También podemos revisar nuestro estado con:
+
+```bash
+git status
+```
+
+---
+
+# 💾 4. Hacer cambios y commits
+
+Una vez dentro de nuestra branch, trabajamos normalmente.
+
+Cuando tengamos un cambio listo:
+
+```bash
+git add .
+```
+
+Después hacemos un commit:
+
+```bash
+git commit -m "fix: corregir build de Tauri"
+```
+
+Los mensajes de commit deben describir **qué se hizo**.
+
+Ejemplos:
+
+```bash
+git commit -m "feat: agregar pantalla de resultados"
+git commit -m "fix: corregir botón de auditoría"
+git commit -m "refactor: reorganizar módulo de reconocimiento"
+git commit -m "docs: actualizar instrucciones de instalación"
+```
+
+Podemos realizar tantos commits como sean necesarios dentro de nuestra branch.
+
+---
+
+# ☁️ 5. Subir nuestra branch a GitHub
+
+La primera vez que subamos una branch:
+
+```bash
+git push -u origin nombre-de-la-branch
+```
+
+Por ejemplo:
+
+```bash
+git push -u origin feature/nueva-gui
+```
+
+Después de eso, simplemente:
+
+```bash
+git push
+```
+
+La branch aparecerá en GitHub.
+
+---
+
+# 🔎 6. Pull Request
+
+Cuando terminemos nuestro trabajo **NO hacemos merge directamente a `main`**.
+
+Primero subimos nuestra branch:
+
+```bash
+git push
+```
+
+Después creamos un **Pull Request (PR)** en GitHub:
+
+```text
+feature/nueva-gui
+        │
+        ↓
+   Pull Request
+        │
+        ↓
+     Revisión
+        │
+        ↓
+      main
+```
+
+El Pull Request permite que otro miembro del equipo revise:
+
+* El código.
+* Los cambios realizados.
+* Que la funcionalidad funcione correctamente.
+* Que no se hayan roto otras partes del proyecto.
+* Que el código mantenga una estructura razonable.
+
+Después de terminar nuestro trabajo:
+
+git add .
+git commit -m "feat: agregar nueva funcionalidad"
+git push -u origin feature/mi-cambio
+
+Una vez subida la branch, entramos al repositorio en GitHub.
+
+GitHub normalmente mostrará un botón:
+
+Compare & pull request
+
+Lo seleccionamos y comprobamos que la dirección sea:
+
+feature/mi-cambio → main
+
+Después:
+
+Escribimos un título descriptivo.
+Explicamos qué cambios realizamos.
+Indicamos cómo probamos los cambios.
+Presionamos Create pull request.
+
+Los demás integrantes podrán revisar nuestro código y comentar los cambios.
+
+Si nos solicitan modificaciones, simplemente seguimos trabajando en la misma branch:
+
+git add .
+git commit -m "fix: realizar cambios solicitados"
+git push
+
+El Pull Request se actualizará automáticamente.
+
+Cuando el cambio haya sido revisado y aprobado, se realizará:
+
+Merge pull request → main
+
+Una vez hecho el merge, la branch puede eliminarse si ya no es necesaria.
+
+---
+
+# 🔀 7. ¿Cómo hacer un merge?
+
+Si por alguna razón necesitamos hacer el merge desde Git, el proceso es:
+
+Primero cambiamos a `main`:
+
+```bash
+git switch main
+```
+
+Actualizamos `main`:
+
+```bash
+git pull
+```
+
+Después hacemos el merge:
+
+```bash
+git merge nombre-de-la-branch
+```
+
+Por ejemplo:
+
+```bash
+git merge fix/tauri-build
+```
+
+Finalmente:
+
+```bash
+git push
+```
+
+Sin embargo, **para el trabajo normal del equipo utilizaremos Pull Requests en GitHub** para hacer este proceso.
+
+---
+
+# ⚠️ 8. ¿Qué pasa si `main` cambió mientras trabajábamos?
+
+Esto será bastante común cuando varias personas trabajan al mismo tiempo.
+
+Supongamos que estamos trabajando en:
+
+```text
+feature/nueva-gui
+```
+
+y otra persona hizo cambios en `main`.
+
+Antes de terminar nuestro trabajo podemos actualizar nuestra branch:
+
+```bash
+git switch main
+git pull
+```
+
+Después regresamos a nuestra branch:
+
+```bash
+git switch feature/nueva-gui
+```
+
+Y mezclamos los cambios recientes de `main`:
+
+```bash
+git merge main
+```
+
+Si Git encuentra conflictos, tendremos que resolverlos manualmente.
+
+Después:
+
+```bash
+git add .
+git commit
+```
+
+Y continuamos normalmente.
+
+---
+
+# 🗑️ 9. Eliminar una branch terminada
+
+Una vez que nuestro Pull Request fue aceptado y la branch ya no es necesaria, podemos eliminarla.
+
+Localmente:
+
+```bash
+git branch -d nombre-de-la-branch
+```
+
+Por ejemplo:
+
+```bash
+git branch -d fix/tauri-build
+```
+
+También podemos eliminarla de GitHub:
+
+```bash
+git push origin --delete fix/tauri-build
+```
+
+GitHub también permite eliminarla directamente después de hacer Merge del Pull Request.
+
+---
+
+# 📋 10. Comandos que debemos conocer
+
+| Acción                         | Comando                           |
+| ------------------------------ | --------------------------------- |
+| Ver estado                     | `git status`                      |
+| Ver branches                   | `git branch`                      |
+| Ver branches locales y remotas | `git branch -a`                   |
+| Crear branch                   | `git switch -c nombre`            |
+| Cambiar de branch              | `git switch nombre`               |
+| Actualizar `main`              | `git switch main` + `git pull`    |
+| Guardar cambios                | `git add .`                       |
+| Crear commit                   | `git commit -m "mensaje"`         |
+| Subir branch por primera vez   | `git push -u origin nombre`       |
+| Subir cambios                  | `git push`                        |
+| Descargar cambios              | `git pull`                        |
+| Unir una branch                | `git merge nombre`                |
+| Eliminar branch local          | `git branch -d nombre`            |
+| Eliminar branch remota         | `git push origin --delete nombre` |
+
+---
+
+# 🚀 11. Flujo que debemos memorizar
+
+En la práctica, la mayoría de nuestro trabajo seguirá este proceso:
+
+### 1. Actualizar `main`
+
+```bash
+git switch main
+git pull
+```
+
+### 2. Crear nuestra branch
+
+```bash
+git switch -c feature/mi-cambio
+```
+
+### 3. Trabajar
+
+```text
+Modificar código
+Probar
+Modificar
+Probar
+...
+```
+
+### 4. Hacer commit
+
+```bash
+git add .
+git commit -m "feat: agregar mi cambio"
+```
+
+### 5. Subir la branch
+
+```bash
+git push -u origin feature/mi-cambio
+```
+
+### 6. Crear Pull Request
+
+```text
+feature/mi-cambio
+        ↓
+   Pull Request
+        ↓
+      Review
+        ↓
+      Merge
+        ↓
+       main
+```
+
+### 7. Eliminar la branch cuando ya no sea necesaria
+
+```bash
+git branch -d feature/mi-cambio
+```
+
+---
+
+# 🧠 IMPORTANTE
+
+Una **branch representa un cambio lógico**, no un commit.
+
+No necesitamos crear una branch para cada pequeño cambio que hagamos.
+
+Por ejemplo, si estamos arreglando el sistema de login y necesitamos hacer cinco commits:
+
+```text
+fix/login
+ ├── fix: corregir validación
+ ├── fix: manejar respuesta del servidor
+ ├── fix: corregir mensaje de error
+ ├── test: agregar pruebas de login
+ └── fix: corregir caso especial
+```
+
+Todo eso puede pertenecer perfectamente a la misma branch:
+
+```text
+fix/login
+```
+
+En cambio, si tenemos dos problemas completamente diferentes:
+
+```text
+fix/login
+fix/tauri-build
+```
+
+lo correcto es utilizar dos branches independientes.
+
+---
+
+## 🎯 En resumen
+
+La regla que seguiremos es:
+
+```text
+┌─────────────────────┐
+│        main         │
+│   Siempre funcional │
+└──────────┬──────────┘
+           │
+           │ crear branch
+           ↓
+┌─────────────────────┐
+│   Nuestra branch    │
+│                     │
+│  trabajar           │
+│  probar             │
+│  hacer commits      │
+└──────────┬──────────┘
+           │
+           │ push
+           ↓
+┌─────────────────────┐
+│    Pull Request     │
+│                     │
+│      revisión       │
+└──────────┬──────────┘
+           │
+           │ aprobado
+           ↓
+┌─────────────────────┐
+│        main         │
+│  cambio integrado   │
+└─────────────────────┘
+```
+
+**`main` = código estable.**
+
+**Branch = trabajo en progreso.**
+
+**Pull Request = revisión antes de integrar.**
+
+**Merge = integrar el trabajo a `main`.**
+
 
 ## Guía de desarrollo del frontend
 
