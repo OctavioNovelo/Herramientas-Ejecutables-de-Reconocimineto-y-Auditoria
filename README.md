@@ -432,19 +432,25 @@ El Pull Request permite que otro miembro del equipo revise:
 
 Después de terminar nuestro trabajo:
 
+``` bash
 git add .
 git commit -m "feat: agregar nueva funcionalidad"
 git push -u origin feature/mi-cambio
+```
 
 Una vez subida la branch, entramos al repositorio en GitHub.
 
 GitHub normalmente mostrará un botón:
 
+``` text
 Compare & pull request
+```
 
 Lo seleccionamos y comprobamos que la dirección sea:
 
+```text
 feature/mi-cambio → main
+```
 
 Después:
 
@@ -457,16 +463,19 @@ Los demás integrantes podrán revisar nuestro código y comentar los cambios.
 
 Si nos solicitan modificaciones, simplemente seguimos trabajando en la misma branch:
 
+```bash
 git add .
 git commit -m "fix: realizar cambios solicitados"
 git push
+```
 
 El Pull Request se actualizará automáticamente.
 
 Cuando el cambio haya sido revisado y aprobado, se realizará:
 
+```text
 Merge pull request → main
-
+```
 Una vez hecho el merge, la branch puede eliminarse si ya no es necesaria.
 
 ---
