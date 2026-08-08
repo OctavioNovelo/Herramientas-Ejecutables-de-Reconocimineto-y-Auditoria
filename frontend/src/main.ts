@@ -12,6 +12,7 @@ import { ScanButton } from "./components/ScanButton";
 import { ResultsTable } from "./components/ResultsTable";
 import { NavBar } from "./components/NavBar";
 import { ScanView } from "./components/ScanView";
+import { VulnerarView } from "./components/VulnerarView";
 
 document.addEventListener("DOMContentLoaded", () => {
   const app = document.getElementById("app");
@@ -92,21 +93,29 @@ document.addEventListener("DOMContentLoaded", () => {
   const resultsTable = new ResultsTable();
   dashboardContainer.appendChild(resultsTable.getElement());
 
-  // ── 2. VISTA: ESCANEO POR CATEGORÍA (nueva pestaña) ────────────────────────
+  // ── 2. VISTA: MAPEAR / DETECTAR (mismo componente ScanView, filtra categorías
+  // según cuál de las dos pestañas esté activa — ver viewState.getCategoriesForCurrentView) ──
   const scanView = new ScanView();
   const scanViewContainer = scanView.getElement();
   scanViewContainer.style.display = "none";
   app.appendChild(scanViewContainer);
 
-  // ── 3. ALTERNAR ENTRE VISTAS ────────────────────────────────────────────────
+  // ── 2b. VISTA: VULNERAR (placeholder — sin herramientas implementadas todavía) ──
+  const vulnerarView = new VulnerarView();
+  const vulnerarContainer = vulnerarView.getElement();
+  vulnerarContainer.style.display = "none";
+  app.appendChild(vulnerarContainer);
+
+  // ── 3. ALTERNAR ENTRE LAS 4 VISTAS ──────────────────────────────────────────
   viewState.subscribe(() => {
     const view = viewState.getView();
-    const isScan = view === "scan";
+    const isScanGroup = view === "mapear" || view === "detectar";
 
-    dashboardContainer.style.display = isScan ? "none" : "block";
-    scanViewContainer.style.display = isScan ? "block" : "none";
+    dashboardContainer.style.display = view === "dashboard" ? "block" : "none";
+    scanViewContainer.style.display = isScanGroup ? "block" : "none";
+    vulnerarContainer.style.display = view === "vulnerar" ? "block" : "none";
 
-    if (isScan) {
+    if (isScanGroup) {
       scanView.activate();
     } else {
       scanView.deactivate();

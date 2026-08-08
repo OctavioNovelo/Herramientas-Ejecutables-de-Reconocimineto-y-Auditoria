@@ -8,7 +8,7 @@
 // (protocolo, timing, puertos) antes de poder lanzarse, replicando lo que el CLI pide por
 // teclado en tools/nmap.py::personalizado.
 
-import { viewState, SCAN_CATEGORIES, ScanCategory } from "../state/viewState";
+import { viewState, ScanCategory } from "../state/viewState";
 import { scanState } from "../state/scanState";
 import { heraApi, CategoryDevice, Vulnerability, PossibleVulnerability, CustomScanParams } from "../api/heraApi";
 import { adminPortLabel, isAdminPortStandard, consumoPortLabel } from "../utils/portLabels";
@@ -86,7 +86,9 @@ export class ScanView {
   private renderChips() {
     this.chipsRow.innerHTML = "";
     const active = viewState.getSelectedCategory();
-    SCAN_CATEGORIES.forEach((cat) => {
+    // Solo se muestran las categorías del grupo correspondiente a la pestaña activa
+    // (Mapear o Detectar) — este mismo componente se reutiliza para ambas.
+    viewState.getCategoriesForCurrentView().forEach((cat) => {
       const chip = document.createElement("button");
       chip.className = "hera-scan-chip" + (cat.id === active.id ? " is-active" : "");
       chip.textContent = cat.label;

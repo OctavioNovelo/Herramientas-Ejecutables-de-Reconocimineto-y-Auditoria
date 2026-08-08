@@ -1,32 +1,35 @@
-// Menú horizontal fijo de navegación entre pestañas. Orden: Escaneo | Opción 2 |
-// LOGO HERA (home) | Opción 3 | Opción 4. Las Opciones 2/3/4 quedan visualmente presentes
-// pero inertes (reservadas para futuro), tal como se acordó en el diseño.
+// Menú horizontal fijo de navegación entre pestañas. Orden: Mapear | Detectar |
+// LOGO HERA (home) | Vulnerar | Opción 4. Mapear/Detectar/Vulnerar están activas;
+// Opción 4 queda visualmente presente pero inerte (reservada para futuro).
 
 import { viewState } from "../state/viewState";
 import "../styles/NavBar.css";
 
 export class NavBar {
   private element: HTMLElement;
-  private btnEscaneo: HTMLButtonElement;
+  private btnMapear: HTMLButtonElement;
+  private btnDetectar: HTMLButtonElement;
+  private btnVulnerar: HTMLButtonElement;
 
   constructor() {
     this.element = document.createElement("nav");
     this.element.className = "hera-navbar";
 
-    // Grupo izquierdo: Escaneo | Opción 2
+    // Grupo izquierdo: Mapear | Detectar
     const leftGroup = document.createElement("div");
     leftGroup.className = "hera-navbar-group";
 
-    this.btnEscaneo = document.createElement("button");
-    this.btnEscaneo.className = "hera-navbar-item";
-    this.btnEscaneo.textContent = "ESCANEO";
-    this.btnEscaneo.addEventListener("click", () => viewState.goToScan());
-    leftGroup.appendChild(this.btnEscaneo);
+    this.btnMapear = document.createElement("button");
+    this.btnMapear.className = "hera-navbar-item";
+    this.btnMapear.textContent = "MAPEAR";
+    this.btnMapear.addEventListener("click", () => viewState.goToMapear());
+    leftGroup.appendChild(this.btnMapear);
 
-    const opcion2 = document.createElement("span");
-    opcion2.className = "hera-navbar-item is-disabled";
-    opcion2.textContent = "OPCIÓN 2";
-    leftGroup.appendChild(opcion2);
+    this.btnDetectar = document.createElement("button");
+    this.btnDetectar.className = "hera-navbar-item";
+    this.btnDetectar.textContent = "DETECTAR";
+    this.btnDetectar.addEventListener("click", () => viewState.goToDetectar());
+    leftGroup.appendChild(this.btnDetectar);
 
     // Centro: Logo HERA (home). Usa el mismo ícono y estilo de gradiente que Header.ts
     // (capas + wordmark con gradient-clip), a escala reducida para caber en el nav de 56px.
@@ -40,14 +43,15 @@ export class NavBar {
     `;
     logoBtn.addEventListener("click", () => viewState.goToDashboard());
 
-    // Grupo derecho: Opción 3 | Opción 4
+    // Grupo derecho: Vulnerar | Opción 4
     const rightGroup = document.createElement("div");
     rightGroup.className = "hera-navbar-group hera-navbar-right";
 
-    const opcion3 = document.createElement("span");
-    opcion3.className = "hera-navbar-item is-disabled";
-    opcion3.textContent = "OPCIÓN 3";
-    rightGroup.appendChild(opcion3);
+    this.btnVulnerar = document.createElement("button");
+    this.btnVulnerar.className = "hera-navbar-item";
+    this.btnVulnerar.textContent = "VULNERAR";
+    this.btnVulnerar.addEventListener("click", () => viewState.goToVulnerar());
+    rightGroup.appendChild(this.btnVulnerar);
 
     const opcion4 = document.createElement("span");
     opcion4.className = "hera-navbar-item is-disabled";
@@ -60,8 +64,10 @@ export class NavBar {
 
     // Reflejar la pestaña activa
     viewState.subscribe(() => {
-      const isScanView = viewState.getView() === "scan";
-      this.btnEscaneo.classList.toggle("is-active", isScanView);
+      const view = viewState.getView();
+      this.btnMapear.classList.toggle("is-active", view === "mapear");
+      this.btnDetectar.classList.toggle("is-active", view === "detectar");
+      this.btnVulnerar.classList.toggle("is-active", view === "vulnerar");
     });
   }
 
