@@ -1,4 +1,5 @@
 # utils/vuln_classification.py
+# Esta madre se la pedi a claude. Estuve moviendole cosas antes de vacaciones pero la neta YA NO me acuerdo que pedo
 """
 Clasifica los resultados de los scripts NSE de Nmap en:
   - "confirmada": hallazgo verificado (librería 'vulns' con state=VULNERABLE,

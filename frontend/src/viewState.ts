@@ -1,5 +1,4 @@
-// Archivo: frontend/src/state/viewState.ts
-// Razón: Estado de navegación entre "pestañas" de la app (dashboard combinado vs. pestaña de
+// Estado de navegación entre "pestañas" de la app (dashboard combinado vs. pestaña de
 // Escaneo por categoría). Separado de scanState.ts a propósito: scanState gestiona DATOS de
 // red (dispositivos, estadísticas, escaneos en curso); viewState solo gestiona QUÉ VISTA se
 // muestra. Un escaneo en curso sigue corriendo igual sin importar qué pestaña esté activa,

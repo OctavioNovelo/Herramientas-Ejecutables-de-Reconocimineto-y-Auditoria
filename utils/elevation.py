@@ -6,7 +6,7 @@ import shlex
 import subprocess
 import sys
 
-
+# Por si ya lo ejecuta con privilegios
 def es_admin() -> bool:
     """Detecta si el proceso actual ya tiene privilegios elevados."""
     sistema = platform.system()
@@ -19,6 +19,7 @@ def es_admin() -> bool:
         return os.geteuid() == 0
 
 
+
 def tiene_tty() -> bool:
     """Determina si hay una terminal interactiva disponible (CLI) o no (GUI)."""
     try:
@@ -27,6 +28,7 @@ def tiene_tty() -> bool:
         return False
 
 
+# Esta funcion es la que permite que en todos los SO se pueda ejecutar un comando con privilegios de administrador, ya sea en CLI o GUI.
 def ejecutar_elevado(args: list[str]) -> subprocess.CompletedProcess:
     """
     Ejecuta 'args' con privilegios administrativos, eligiendo el mecanismo

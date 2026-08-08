@@ -71,7 +71,7 @@ class ScanStateManager {
   }
 
   // Inicia un escaneo de red real
-  async startScan(scanType: string = "full_pack") {
+  async startScan(scanType: string = "full_pack", target?: string) {
     if (this.state.isScanning) return;
 
     this.state.isScanning = true;
@@ -79,7 +79,7 @@ class ScanStateManager {
     this.notify();
 
     try {
-      await heraApi.startScan(scanType);
+      await heraApi.startScan(scanType, target);
       // trigger_nmap_scan es síncrono del lado de Rust/Python (await bloqueante),
       // así que al volver aquí el escaneo ya terminó: recargamos datos de inmediato.
       await this.refreshData();

@@ -1,5 +1,4 @@
-// Archivo: frontend/src/components/ReportButton.ts
-// Razón: Botón secundario independiente que aparece solo cuando existen resultados previos.
+// Botón secundario independiente que aparece solo cuando existen resultados previos.
 // Permite acceder al informe más reciente, con transición de hover hacia NUEVO ESCANEO.
 
 import { scanState } from "../state/scanState";

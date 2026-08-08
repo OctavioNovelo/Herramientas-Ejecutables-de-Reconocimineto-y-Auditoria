@@ -1,5 +1,4 @@
-// Archivo: frontend/src/components/Card.ts
-// Razón: Contenedor visual base con bordes redondeados y sombra suave, reutilizado para estructurar las secciones del dashboard.
+// Contenedor visual base con bordes redondeados y sombra suave, reutilizado para estructurar las secciones del dashboard.
 
 import "../styles/Card.css";
 

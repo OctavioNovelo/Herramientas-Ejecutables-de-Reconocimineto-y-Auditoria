@@ -1,5 +1,4 @@
-// Archivo: frontend/src/components/ScanView.ts
-// Razón: Pestaña "Escaneo" — selector de categoría, botón de ejecución (o formulario para
+// Pestaña "Escaneo" — selector de categoría, botón de ejecución (o formulario para
 // "Personalizado"), y resultados presentados según el tipo de escaneo elegido:
 //   - "vuln": separa hallazgos Confirmados de Posibles (sin confirmar)
 //   - "admin": solo puertos ABIERTOS de gestión, marcando los no estándar
@@ -30,7 +29,13 @@ export class ScanView {
     timing: 4,
     portMode: "top",
     portValue: "1000",
+    target: "",
   };
+
+  // IP/red objetivo para las 7 categorías que NO son "Personalizado". Por defecto vacío
+  // (usa la subred local detectada automáticamente); el usuario puede escribir cualquier
+  // IP, rango o CIDR que Nmap acepte en un archivo -iL.
+  private targetInput: string = "";
 
   constructor() {
     this.element = document.createElement("div");
@@ -104,16 +109,31 @@ export class ScanView {
     label.className = "hera-scanview-action-bar-label hera-scanview-action-label";
     label.textContent = `RESULTADOS — ${cat.label.toUpperCase()}`;
 
+    const targetField = document.createElement("div");
+    targetField.className = "hera-custom-field hera-target-field";
+    const targetLabel = document.createElement("label");
+    targetLabel.textContent = "IP / red objetivo (opcional)";
+    const targetInputEl = document.createElement("input");
+    targetInputEl.type = "text";
+    targetInputEl.placeholder = "Vacío = red local detectada";
+    targetInputEl.value = this.targetInput;
+    targetInputEl.addEventListener("input", () => {
+      this.targetInput = targetInputEl.value;
+    });
+    targetField.appendChild(targetLabel);
+    targetField.appendChild(targetInputEl);
+
     const runBtn = document.createElement("button");
     runBtn.className = "hera-scanview-run-btn";
     runBtn.disabled = isScanning;
     runBtn.textContent = isScanning ? "Escaneando..." : "Ejecutar";
     runBtn.addEventListener("click", async () => {
-      await scanState.startScan(cat.id);
+      await scanState.startScan(cat.id, this.targetInput);
       this.loadAndRenderResults();
     });
 
     this.actionBar.appendChild(label);
+    this.actionBar.appendChild(targetField);
     this.actionBar.appendChild(runBtn);
   }
 
@@ -212,18 +232,121 @@ export class ScanView {
       form.appendChild(valueField);
     }
 
-    // Botón ejecutar
+    // IP / red objetivo (opcional) — mismo campo conceptual que las otras 7 categorías
+    const targetField = document.createElement("div");
+    targetField.className = "hera-custom-field hera-target-field";
+    const targetLabel = document.createElement("label");
+    targetLabel.textContent = "IP / red objetivo (opcional)";
+    const targetInputEl = document.createElement("input");
+    targetInputEl.type = "text";
+    targetInputEl.placeholder = "Vacío = red local detectada";
+    targetInputEl.value = this.customForm.target ?? "";
+    targetInputEl.addEventListener("input", () => {
+      this.customForm.target = targetInputEl.value;
+    });
+    targetField.appendChild(targetLabel);
+    targetField.appendChild(targetInputEl);
+    form.appendChild(targetField);
+
+    // Botón ejecutar (con validación previa — ver validateCustomForm)
     const runBtn = document.createElement("button");
     runBtn.className = "hera-scanview-run-btn";
     runBtn.disabled = isScanning;
     runBtn.textContent = isScanning ? "Escaneando..." : "Ejecutar";
     runBtn.addEventListener("click", async () => {
+      const validationError = this.validateCustomForm();
+      if (validationError) {
+        this.showCustomFormError(validationError);
+        return;
+      }
+      this.clearCustomFormError();
       await scanState.startCustomScan(this.customForm);
       this.loadAndRenderResults();
     });
     form.appendChild(runBtn);
 
+    // Contenedor de error de validación (vacío por defecto, se llena en showCustomFormError)
+    const errorEl = document.createElement("p");
+    errorEl.className = "hera-custom-form-error";
+    errorEl.id = "hera-custom-form-error";
+    errorEl.style.display = "none";
+    form.appendChild(errorEl);
+
     return form;
+  }
+
+  // Valida los parámetros del formulario "Personalizado" del lado del cliente, antes de
+  // siquiera invocar Tauri — evita un viaje redondo a Rust/Python solo para recibir un
+  // error de validación. La MISMA validación se repite en tools/nmap.py::_validar_parametros_personalizado
+  // como defensa del lado del backend (por si algún día hay otro llamador de trigger_custom_scan
+  // que no pase por este formulario). Devuelve un mensaje de error, o null si todo es válido.
+  private validateCustomForm(): string | null {
+    const f = this.customForm;
+
+    if (!["tcp", "udp", "sctp"].includes(f.protocol)) {
+      return "Protocolo inválido.";
+    }
+    if (f.protocol === "tcp" && !["syn", "connect", "fin", "null", "xmas"].includes(f.tcpType ?? "")) {
+      return "Tipo de escaneo TCP inválido.";
+    }
+    if (!Number.isInteger(f.timing) || f.timing < 1 || f.timing > 5) {
+      return "La intensidad debe estar entre T1 y T5.";
+    }
+    if (!["specific", "top", "ratio", "all"].includes(f.portMode)) {
+      return "Modo de puertos inválido.";
+    }
+
+    if (f.portMode === "specific") {
+      const tokens = f.portValue.split(",").map((t) => t.trim()).filter(Boolean);
+      if (tokens.length === 0) {
+        return "Especifica al menos un puerto (ej: 80,443).";
+      }
+      for (const tok of tokens) {
+        const rangeMatch = tok.match(/^(\d{1,5})-(\d{1,5})$/);
+        if (rangeMatch) {
+          const a = parseInt(rangeMatch[1], 10);
+          const b = parseInt(rangeMatch[2], 10);
+          if (a < 1 || b > 65535 || a > b) {
+            return `Rango de puertos inválido: ${tok}`;
+          }
+        } else if (/^\d{1,5}$/.test(tok)) {
+          const n = parseInt(tok, 10);
+          if (n < 1 || n > 65535) {
+            return `Puerto fuera de rango (1-65535): ${tok}`;
+          }
+        } else {
+          return `Formato de puerto no reconocido: ${tok}`;
+        }
+      }
+    } else if (f.portMode === "top") {
+      const n = parseInt(f.portValue, 10);
+      if (!Number.isInteger(n) || String(n) !== f.portValue.trim() || n < 1 || n > 65535) {
+        return "La cantidad de 'top ports' debe ser un entero entre 1 y 65535.";
+      }
+    } else if (f.portMode === "ratio") {
+      const r = parseFloat(f.portValue);
+      if (isNaN(r) || r < 0 || r > 1) {
+        return "El port-ratio debe ser un número entre 0 y 1.";
+      }
+    }
+
+    return null;
+  }
+
+  private showCustomFormError(message: string) {
+    const el = document.getElementById("hera-custom-form-error");
+    if (el) {
+      el.textContent = `⚠ ${message}`;
+      el.style.display = "block";
+    }
+  }
+
+  private clearCustomFormError() {
+    const el = document.getElementById("hera-custom-form-error");
+    if (el) {
+      el.textContent = "";
+      el.style.display = "none";
+    }
   }
 
   private buildSelectField(

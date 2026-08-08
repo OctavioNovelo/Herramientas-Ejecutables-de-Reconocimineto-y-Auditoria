@@ -1,5 +1,4 @@
-// Archivo: frontend/src/components/NetworkChart.ts
-// Razón: Representa la actividad de red por host usando un gráfico de líneas suavizadas (curvas Bézier cúbicas).
+// Representa la actividad de red por host usando un gráfico de líneas suavizadas (curvas Bézier cúbicas).
 // Si no hay datos reales, muestra un placeholder con la misma forma de línea, preparado para datos futuros.
 
 import { Card } from "./Card";

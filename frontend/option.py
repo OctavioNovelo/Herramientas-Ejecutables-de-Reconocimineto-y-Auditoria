@@ -1,4 +1,3 @@
-# frontend/option.py
 from core.executor import obtener_carpeta_os
 import platform
 

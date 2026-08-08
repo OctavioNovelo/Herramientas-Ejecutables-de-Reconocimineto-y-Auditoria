@@ -1,5 +1,4 @@
-// Archivo: frontend/src/main.ts
-// Razón: Punto de entrada principal. Monta el menú horizontal fijo, el dashboard combinado
+// Punto de entrada principal. Monta el menú horizontal fijo, el dashboard combinado
 // (vista por defecto) y la pestaña de Escaneo por categoría, alternando entre ambas según
 // viewState sin usar una librería de rutas — todo vanilla, consistente con el resto del proyecto.
 

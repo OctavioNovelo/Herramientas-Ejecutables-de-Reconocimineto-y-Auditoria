@@ -4,6 +4,8 @@ import platform
 import os
 import re
 from pathlib import Path
+
+# Aparentemente, la función obtener_sistema_operativo y obtener_carpeta_os no se utilizan, revisar su importancia o eliminar.
 from utils.system_info import obtener_sistema_operativo, obtener_carpeta_os
 
 def ejecutar_herramienta(tool, os_folder):
@@ -28,6 +30,8 @@ def ejecutar_herramienta(tool, os_folder):
         
         # Split into lines for granular processing
         lineas = ip_result.stdout.split('\n')
+
+        # Para que esta esta variable ? 
         adaptador_actual = ""
         bloques = []
         

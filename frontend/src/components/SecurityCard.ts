@@ -1,5 +1,4 @@
-// Archivo: frontend/src/components/SecurityCard.ts
-// Razón: Muestra visualmente el nivel de riesgo de seguridad (BAJO, MEDIO, ALTO) con colores e iconos coherentes con los datos del XML.
+// Muestra visualmente el nivel de riesgo de seguridad (BAJO, MEDIO, ALTO) con colores e iconos coherentes con los datos del XML.
 
 import { Card } from "./Card";
 import { ScanStats } from "../api/heraApi";

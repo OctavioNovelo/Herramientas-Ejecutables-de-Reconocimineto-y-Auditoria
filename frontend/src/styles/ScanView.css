@@ -42,7 +42,7 @@
   padding: 16px 20px;
   margin-bottom: 22px;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
@@ -87,6 +87,22 @@
   gap: 14px;
   align-items: flex-end;
   width: 100%;
+  position: relative;
+}
+
+/* El campo de IP/red objetivo necesita más ancho que los selects (puede llevar CIDR,
+   rangos o hostnames largos) — se ensancha y tiene prioridad para crecer en el wrap. */
+.hera-target-field {
+  min-width: 220px;
+  flex: 1 1 220px;
+}
+
+.hera-custom-form-error {
+  width: 100%;
+  color: #f87171;
+  font-size: 11.5px;
+  font-weight: 600;
+  margin: 10px 0 0;
 }
 
 .hera-custom-field {

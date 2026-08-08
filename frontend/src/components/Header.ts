@@ -1,5 +1,4 @@
-// Archivo: frontend/src/components/Header.ts
-// Razón: Muestra el branding de HERA de forma minimalista en la parte superior sin barra de navegación tradicional.
+// Muestra el branding de HERA de forma minimalista en la parte superior sin barra de navegación tradicional.
 
 import "../styles/Header.css";
 

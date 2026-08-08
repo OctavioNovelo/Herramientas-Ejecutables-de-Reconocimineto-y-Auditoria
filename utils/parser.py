@@ -1,4 +1,7 @@
 # utils/parser.py
+# ESTA ARCHIVO ES ORO. Aqui ocurre la magia de parsear los XML de Nmap y convertirlos en datos útiles para la UI y el dashboard.
+# Esta un 80% hecho por IA por lo que aqui hay muchas vulnerabilidades y deudas tecnicas
+# Si algun archivo se lee mal o se tienen que agregar nuevos PARSER para nuevos archivos, aqui se modifica y/o crean
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from utils import vuln_classification

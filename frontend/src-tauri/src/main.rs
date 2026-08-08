@@ -1,5 +1,4 @@
-// Archivo: frontend/src-tauri/src/main.rs
-// Razón: Implementa los comandos nativos de Rust para leer directorios del sistema de forma
+// Implementa los comandos nativos de Rust para leer directorios del sistema de forma
 // segura, obtener la dirección de red auditada, correr subprocesos de escaneo, y exponer el
 // análisis ya procesado por utils/parser.py (fuente única de verdad, compartida con el CLI).
 
@@ -186,23 +185,23 @@ except Exception as e:
 // a propósito: esa función usa input() interactivo (CLI), lo cual se colgaría indefinidamente
 // si se invoca sin una terminal real, como ocurre al lanzarla desde un subprocess de Tauri.
 #[tauri::command]
-async fn trigger_nmap_scan(scan_type: String) -> Result<String, String> {
+async fn trigger_nmap_scan(scan_type: String, target: Option<String>) -> Result<String, String> {
     println!(
         "Iniciando escaneo real de tipo: {} en el backend de HERA",
         scan_type
     );
 
     let funcion_python = match scan_type.as_str() {
-        "rapido" => "nmap.escaneo_rapido(context)",
-        "vuln" => "nmap.vulnerabilidades(context)",
-        "ocultos" => "nmap.dispositivos_ocultos(context)",
-        "admin" => "nmap.admin_audit(context)",
-        "id" => "nmap.indentificar_dispositivos(context)",
-        "consumo" => "nmap.monitor_consumo(context)",
-        "full" | "full_pack" => "nmap.full_pack(context)",
+        "rapido" => "nmap.escaneo_rapido(context, target=target)",
+        "vuln" => "nmap.vulnerabilidades(context, target=target)",
+        "ocultos" => "nmap.dispositivos_ocultos(context, target=target)",
+        "admin" => "nmap.admin_audit(context, target=target)",
+        "id" => "nmap.indentificar_dispositivos(context, target=target)",
+        "consumo" => "nmap.monitor_consumo(context, target=target)",
+        "full" | "full_pack" => "nmap.full_pack(context, target=target)",
         "custom" => {
             return Err(
-                "El escaneo personalizado requiere entrada interactiva y solo está disponible desde el CLI por ahora.".to_string()
+                "El escaneo personalizado usa un comando distinto (trigger_custom_scan), no trigger_nmap_scan.".to_string()
             )
         }
         otro => return Err(format!("Tipo de escaneo desconocido: '{}'", otro)),
@@ -211,6 +210,10 @@ async fn trigger_nmap_scan(scan_type: String) -> Result<String, String> {
     let root = find_workspace_root()
         .ok_or_else(|| "No se pudo localizar el directorio de resultados de HERA.".to_string())?;
 
+    // El objetivo (target) se pasa como argumento de proceso (sys.argv), NO interpolado
+    // directamente en el código Python, porque es un valor que escribe el usuario y no debe
+    // poder romper la sintaxis del script embebido (mismo criterio que get_category_results
+    // y trigger_custom_scan).
     let python_code = format!(
         r#"
 import sys
@@ -220,11 +223,15 @@ import tools.nmap as nmap
 from utils.system_info import obtener_sistema_operativo, obtener_carpeta_os
 
 try:
+    target = sys.argv[1] if sys.argv[1] != '__NONE__' else None
     os_name = obtener_sistema_operativo()
     os_folder = obtener_carpeta_os(os_name)
     print("1. Resolviendo configuración de red local...")
     context = ejec.ejecutar_herramienta('Nmap', os_folder)
-    print(f"2. Iniciando escaneo en subredes: {{context.get('redes')}}")
+    if target:
+        print(f"2. Iniciando escaneo en objetivo personalizado: {{target}}")
+    else:
+        print(f"2. Iniciando escaneo en subredes: {{context.get('redes')}}")
     {funcion_python}
     print("3. Escaneo finalizado con éxito.")
 except Exception as e:
@@ -234,9 +241,12 @@ except Exception as e:
         funcion_python = funcion_python
     );
 
+    let target_arg = target.unwrap_or_else(|| "__NONE__".to_string());
+
     let output = std::process::Command::new("python3")
         .arg("-c")
         .arg(&python_code)
+        .arg(&target_arg)
         .current_dir(&root)
         .output()
         .map_err(|e| format!("Fallo al iniciar el subproceso de Python: {}", e))?;
@@ -318,6 +328,7 @@ async fn trigger_custom_scan(
     timing: u8,
     port_mode: String,
     port_value: String,
+    target: Option<String>,
 ) -> Result<String, String> {
     let root = find_workspace_root()
         .ok_or_else(|| "No se pudo localizar el directorio de resultados de HERA.".to_string())?;
@@ -335,12 +346,16 @@ try:
     timing = int(sys.argv[3])
     port_mode = sys.argv[4]
     port_value = sys.argv[5]
+    target = sys.argv[6] if sys.argv[6] != '__NONE__' else None
 
     os_name = obtener_sistema_operativo()
     os_folder = obtener_carpeta_os(os_name)
     print("1. Resolviendo configuración de red local...")
     context = ejec.ejecutar_herramienta('Nmap', os_folder)
-    print(f"2. Iniciando escaneo personalizado en subredes: {context.get('redes')}")
+    if target:
+        print(f"2. Iniciando escaneo personalizado en objetivo: {target}")
+    else:
+        print(f"2. Iniciando escaneo personalizado en subredes: {context.get('redes')}")
     nmap.personalizado_gui(
         context,
         protocol=protocol,
@@ -348,6 +363,7 @@ try:
         timing=timing,
         port_mode=port_mode,
         port_value=port_value,
+        target=target,
     )
     print("3. Escaneo personalizado finalizado con éxito.")
 except Exception as e:
@@ -356,6 +372,7 @@ except Exception as e:
 "#;
 
     let tcp_type_arg = tcp_type.unwrap_or_else(|| "__NONE__".to_string());
+    let target_arg = target.unwrap_or_else(|| "__NONE__".to_string());
 
     let output = std::process::Command::new("python3")
         .arg("-c")
@@ -365,6 +382,7 @@ except Exception as e:
         .arg(timing.to_string())
         .arg(&port_mode)
         .arg(&port_value)
+        .arg(&target_arg)
         .current_dir(&root)
         .output()
         .map_err(|e| format!("Fallo al iniciar el subproceso de Python: {}", e))?;

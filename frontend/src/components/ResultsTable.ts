@@ -1,5 +1,4 @@
-// Archivo: frontend/src/components/ResultsTable.ts
-// Razón: Renderiza los dispositivos detectados, sus IPs, MACs, puertos y vulnerabilidades con scroll independiente y diseño fluido.
+// Renderiza los dispositivos detectados, sus IPs, MACs, puertos y vulnerabilidades con scroll independiente y diseño fluido.
 
 import { Device } from "../api/heraApi";
 import "../styles/ResultsTable.css";

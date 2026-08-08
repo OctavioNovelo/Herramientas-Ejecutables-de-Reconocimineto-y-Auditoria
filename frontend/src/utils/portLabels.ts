@@ -1,5 +1,4 @@
-// Archivo: frontend/src/utils/portLabels.ts
-// Razón: Traduce números de puerto a etiquetas legibles para las vistas de categoría
+// Traduce números de puerto a etiquetas legibles para las vistas de categoría
 // "Auditoría Admin" y "Monitor de Consumo". Los puertos deben coincidir EXACTAMENTE con
 // los que usan admin_audit() y monitor_consumo() en tools/nmap.py — si esas listas cambian,
 // actualizar aquí también.
@@ -43,14 +42,14 @@ export function isAdminPortStandard(port: number): boolean {
 
 // --- Monitor de Consumo ---
 const CONSUMO_PORT_LABELS: Record<number, string> = {
-  1935: "🎥 Streaming (RTMP)",
-  3478: "📞 VoIP (STUN)",
-  3479: "📞 VoIP",
-  3480: "📞 VoIP",
-  5060: "📞 VoIP (SIP)",
-  5061: "📞 VoIP (SIP sobre TLS)",
-  80: "🌐 Web",
-  443: "🌐 Web (TLS)",
+  1935: "Streaming (RTMP)",
+  3478: "VoIP (STUN)",
+  3479: "VoIP",
+  3480: "VoIP",
+  5060: "VoIP (SIP)",
+  5061: "VoIP (SIP sobre TLS)",
+  80: "Web",
+  443: "Web (TLS)",
 };
 
 export function consumoPortLabel(port: number): string {

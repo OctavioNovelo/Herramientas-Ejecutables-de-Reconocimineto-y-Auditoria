@@ -1,5 +1,4 @@
-// Archivo: frontend/vite.config.ts
-// Razón: Configura Vite como empaquetador para compilar y recargar en caliente el frontend dentro del WebView de Tauri.
+// Configura Vite como empaquetador para compilar y recargar en caliente el frontend dentro del WebView de Tauri.
 
 import { defineConfig } from "vite";
 

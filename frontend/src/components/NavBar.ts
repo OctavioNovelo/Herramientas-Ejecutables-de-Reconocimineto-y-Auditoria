@@ -1,5 +1,4 @@
-// Archivo: frontend/src/components/NavBar.ts
-// Razón: Menú horizontal fijo de navegación entre pestañas. Orden: Escaneo | Opción 2 |
+// Menú horizontal fijo de navegación entre pestañas. Orden: Escaneo | Opción 2 |
 // LOGO HERA (home) | Opción 3 | Opción 4. Las Opciones 2/3/4 quedan visualmente presentes
 // pero inertes (reservadas para futuro), tal como se acordó en el diseño.
 

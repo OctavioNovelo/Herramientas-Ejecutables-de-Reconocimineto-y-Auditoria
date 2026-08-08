@@ -1,5 +1,4 @@
-// Archivo: frontend/src/components/ScanButton.ts
-// Razón: Único botón de acción principal de HERA.
+// Único botón de acción principal de HERA.
 // - Sin resultados previos: muestra "ESCANEAR" → lanza FULL_PACK al hacer clic.
 // - Con resultados previos: muestra "INFORME" → en hover transiciona a "NUEVO ESCANEO" → lanza FULL_PACK al hacer clic.
 // - Durante el escaneo: muestra spinner "ESCANEANDO RED..." y se deshabilita.

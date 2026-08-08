@@ -9,6 +9,7 @@ nmap_bin = {
     'macos':   {'bin_name': 'nmap'}
 }
 
+# Esta variable es la que permite crear varios archivos de salida con el mismo nombre base, agregando un sufijo incremental si ya existe un archivo previo.
 def file_number(base_path):
     """Calculates the next available filename (e.g., internet_lento, internet_lento_1, etc.)
     Checks for .xml, _normal.txt, and _grepable.txt availability.
@@ -30,15 +31,32 @@ def file_number(base_path):
             return nuevo_path_str
         contador += 1
 
-def escaneo_rapido(context):
+
+def _escribir_hosts_file(hosts_file, context, target=None):
+    """
+    Escribe hosts.txt con la direccion de red.
+
+    Si el usuario especificó 'target' (una IP, rango, CIDR o hostname — cualquier formato
+    que Nmap acepte en un archivo -iL), se usa eso tal cual. Si no, se usa la subred local
+    detectada automáticamente en context["redes"] (comportamiento por defecto, sin cambios).
+    """
+    hosts_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(hosts_file, "w") as f:
+        if target:
+            f.write(target.strip() + "\n")
+        else:
+            for red in context["redes"]:
+                f.write(red + "\n")
+
+
+# Aqui empiezan las funciones que ejecutan los diff escaneos
+def escaneo_rapido(context, target=None):
     base_path = Path(__file__).parent.parent
     hosts_file = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "hosts.txt"
     result_path_base = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "escaneo_rapido"
     result_path = file_number(result_path_base)
 
-    hosts_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(hosts_file, "w") as f:
-        for red in context["redes"]: f.write(red + "\n")
+    _escribir_hosts_file(hosts_file, context, target)
 
     args = [str(context["bin_path"]), "-sS", "-F", "-Pn", "-n", "-O",
             "-iL", str(hosts_file),
@@ -47,15 +65,13 @@ def escaneo_rapido(context):
             "-oX", f"{result_path}.xml"]
     elevation.ejecutar_elevado(args)
 
-def vulnerabilidades(context, timing_level = 3):
+def vulnerabilidades(context, timing_level=3, target=None):
     base_path = Path(__file__).parent.parent
     hosts_file = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "hosts.txt"
     result_path_base = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "vulnerabilidades"
     result_path = file_number(result_path_base)
 
-    hosts_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(hosts_file, "w") as f:
-        for red in context["redes"]: f.write(red + "\n")
+    _escribir_hosts_file(hosts_file, context, target)
 
     args = [str(context["bin_path"]), "-sV", "--script", "vuln", "-Pn", "-n", f"-T{timing_level}", "-O",
             "-iL", str(hosts_file),
@@ -65,7 +81,7 @@ def vulnerabilidades(context, timing_level = 3):
     elevation.ejecutar_elevado(args)
 
 # Consolida todas las técnicas en un único escaneo exhaustivo
-def full_pack(context):
+def full_pack(context, target=None):
     """
     FULL PACK: Ejecuta un análisis integral combinando las 6 categorías del auditor.
     1. Escaneo Rapido
@@ -79,6 +95,8 @@ def full_pack(context):
     result_path_base = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "full_pack"
     result_path = file_number(result_path_base)
     hosts_file = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "hosts.txt"
+
+    _escribir_hosts_file(hosts_file, context, target)
 
     # Puertos combinados de Auditoría Admin y Monitor Consumo
     # Admin: 21,22,23,80,443,623,902,1433,2082,2083,2086,2087,3306,3389,3391,5900,5985,8080,8443,8880
@@ -104,12 +122,14 @@ def full_pack(context):
     print(f"\n[+] Iniciando FULL PACK. Este proceso es exhaustivo y tomará tiempo...\n")
     elevation.ejecutar_elevado(args)
 
-def dispositivos_ocultos(context, timing_level=3):
+def dispositivos_ocultos(context, timing_level=3, target=None):
     """Detects hidden intruders using fragmented scans and no ping."""
     base_path = Path(__file__).parent.parent
     result_path_base = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "dispositivos_ocultos"
     result_path = file_number(result_path_base)
     hosts_file = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "hosts.txt"
+
+    _escribir_hosts_file(hosts_file, context, target)
 
     args = [str(context["bin_path"]), "-sS", "-Pn", "-f", "--data-length", "24", f"-T{timing_level}", "-n",
             "-iL", str(hosts_file),
@@ -119,12 +139,14 @@ def dispositivos_ocultos(context, timing_level=3):
 
     elevation.ejecutar_elevado(args)
 
-def admin_audit(context):
+def admin_audit(context, target=None):
     """Searches for exposed management panels."""
     base_path = Path(__file__).parent.parent
     result_path_base = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "admin_audit"
     result_path = file_number(result_path_base)
     hosts_file = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "hosts.txt"
+
+    _escribir_hosts_file(hosts_file, context, target)
 
     # Common management ports: HTTP, HTTPS, Telnet, SSH, FTP, etc.
     args = [str(context["bin_path"]), "-p", "21,22,23,80,443,623,902,1433,2082,2083,2086,2087,3306,3389,3391,5900,5985,8080,8443,8880",
@@ -160,14 +182,14 @@ def admin_audit(context):
 
     elevation.ejecutar_elevado(args)
 
-# Change name
-# Crashes if it doesn't find hosts.txt at the beginning, so it's not generating it.
-def indentificar_dispositivos(context, timing_level=4):
+def indentificar_dispositivos(context, timing_level=4, target=None):
     """Deep device identification."""
     base_path = Path(__file__).parent.parent
     result_path_base = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "ind_disp"
     result_path = file_number(result_path_base)
     hosts_file = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "hosts.txt"
+
+    _escribir_hosts_file(hosts_file, context, target)
 
     args = [str(context["bin_path"]), "-A", f"-T{timing_level}", "-Pn",
             "-iL", str(hosts_file),
@@ -177,12 +199,14 @@ def indentificar_dispositivos(context, timing_level=4):
 
     elevation.ejecutar_elevado(args)
 
-def monitor_consumo(context, timing_level=4):
-    """Searches for high-consumption protocols (Streaming/Gaming)."""
+def monitor_consumo(context, timing_level=4, target=None):
+    """Searches for high-consumption protocols."""
     base_path = Path(__file__).parent.parent
     result_path_base = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "consumo"
     result_path = file_number(result_path_base)
     hosts_file = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "hosts.txt"
+
+    _escribir_hosts_file(hosts_file, context, target)
 
     # Steam, Netflix, Spotify, and common games ports
     args = [str(context["bin_path"]), "-p", "1935,3478,3479,3480,5060,5061,80,443,27015-27030", f"-T{timing_level}", "-sV",
@@ -194,14 +218,20 @@ def monitor_consumo(context, timing_level=4):
     elevation.ejecutar_elevado(args)
 
 def personalizado(context):
+    """
+    Versión INTERACTIVA (CLI) del escaneo personalizado. Pide todo por teclado, incluyendo
+    la opción de un target/IP específico. No se tocó para agregar validación de parámetros
+    aparte de lo que ya hacía frontend.CLI.leer_opcion() (que ya restringe rangos numéricos);
+    la validación exhaustiva nueva vive en personalizado_gui(), ver esa función.
+    """
     base_path = Path(__file__).parent.parent
     hosts_file = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "hosts.txt"
     result_path_base = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "personalizado"
     result_path = file_number(result_path_base)
 
-    hosts_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(hosts_file, "w") as f:
-        for red in context["redes"]: f.write(red + "\n")
+    print("\n Objetivo del escaneo \n")
+    target_input = input("IP/red a escanear (Enter para usar la red local detectada): ").strip()
+    _escribir_hosts_file(hosts_file, context, target_input if target_input else None)
 
     print("\n Escaneo Personalizado \n")
     print("1) TCP  2) UDP  3) SCTP  4) Regresar \n")
@@ -234,7 +264,69 @@ def personalizado(context):
     elevation.ejecutar_elevado(args)
 
 
-def personalizado_gui(context, protocol, tcp_type=None, timing=4, port_mode="top", port_value="1000"):
+def _validar_parametros_personalizado(protocol, tcp_type, timing, port_mode, port_value):
+    """
+    Valida los parámetros del escaneo personalizado ANTES de construir el comando de Nmap,
+    para fallar rápido con un mensaje claro en vez de dejar que Nmap reciba flags mal
+    formadas y falle con un error críptico. Lanza ValueError si algo es inválido.
+
+    """
+    if protocol not in ("tcp", "udp", "sctp"):
+        raise ValueError(f"Protocolo inválido: '{protocol}'. Debe ser tcp, udp o sctp.")
+
+    if protocol == "tcp" and tcp_type not in ("syn", "connect", "fin", "null", "xmas"):
+        raise ValueError(
+            f"Tipo de escaneo TCP inválido: '{tcp_type}'. Debe ser syn, connect, fin, null o xmas."
+        )
+
+    try:
+        timing_int = int(timing)
+    except (TypeError, ValueError):
+        raise ValueError(f"La intensidad (timing) debe ser un número entero: '{timing}'.")
+    if not (1 <= timing_int <= 5):
+        raise ValueError(f"La intensidad (timing) debe estar entre 1 y 5, recibido: {timing_int}.")
+
+    if port_mode not in ("specific", "top", "ratio", "all"):
+        raise ValueError(
+            f"Modo de puertos inválido: '{port_mode}'. Debe ser specific, top, ratio o all."
+        )
+
+    if port_mode == "specific":
+        tokens = [t.strip() for t in str(port_value).split(",") if t.strip()]
+        if not tokens:
+            raise ValueError("Debes especificar al menos un puerto (ej: 80,443).")
+        for tok in tokens:
+            if "-" in tok:
+                partes = tok.split("-")
+                if len(partes) != 2 or not all(p.isdigit() for p in partes):
+                    raise ValueError(f"Rango de puertos con formato inválido: '{tok}'.")
+                a, b = int(partes[0]), int(partes[1])
+                if not (1 <= a <= 65535 and 1 <= b <= 65535 and a <= b):
+                    raise ValueError(f"Rango de puertos fuera de límites válidos (1-65535): '{tok}'.")
+            else:
+                if not tok.isdigit() or not (1 <= int(tok) <= 65535):
+                    raise ValueError(f"Puerto fuera de rango (1-65535): '{tok}'.")
+
+    elif port_mode == "top":
+        try:
+            n = int(port_value)
+        except (TypeError, ValueError):
+            raise ValueError(f"La cantidad de 'top ports' debe ser un entero: '{port_value}'.")
+        if not (1 <= n <= 65535):
+            raise ValueError(f"La cantidad de 'top ports' debe estar entre 1 y 65535, recibido: {n}.")
+
+    elif port_mode == "ratio":
+        try:
+            r = float(port_value)
+        except (TypeError, ValueError):
+            raise ValueError(f"El port-ratio debe ser un número: '{port_value}'.")
+        if not (0 <= r <= 1):
+            raise ValueError(f"El port-ratio debe estar entre 0 y 1, recibido: {r}.")
+
+    # port_mode == "all": no hay port_value que validar (-p- no toma argumento adicional).
+
+
+def personalizado_gui(context, protocol, tcp_type=None, timing=4, port_mode="top", port_value="1000", target=None):
     """
     Versión NO interactiva de personalizado(), pensada para la interfaz gráfica (Tauri).
     personalizado() usa input()/frontend.CLI.leer_opcion() para pedir opciones por teclado,
@@ -242,6 +334,10 @@ def personalizado_gui(context, protocol, tcp_type=None, timing=4, port_mode="top
     ocurre al lanzarlo desde la app nativa). Esta función recibe las mismas opciones como
     parámetros explícitos en vez de preguntarlas, pero construye exactamente el mismo tipo
     de comando nmap que la versión interactiva del CLI.
+
+    Valida todos los parámetros antes de tocar el sistema de archivos o construir el
+    comando (ver _validar_parametros_personalizado) — si algo es inválido, lanza ValueError
+    con un mensaje claro, que se propaga hasta la interfaz como el error del escaneo.
 
     Parámetros:
         protocol:   "tcp" | "udp" | "sctp"
@@ -253,15 +349,17 @@ def personalizado_gui(context, protocol, tcp_type=None, timing=4, port_mode="top
                         "top"      -> cantidad de top-ports, ej. "1000"
                         "ratio"    -> ratio 0-1, ej. "0.5"
                         "all"      -> ignorado
+        target:     IP/red/hostname específico a escanear (opcional). Si no se especifica,
+                    usa la subred local detectada automáticamente (comportamiento por defecto).
     """
+    _validar_parametros_personalizado(protocol, tcp_type, timing, port_mode, port_value)
+
     base_path = Path(__file__).parent.parent
     hosts_file = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "hosts.txt"
     result_path_base = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "personalizado"
     result_path = file_number(result_path_base)
 
-    hosts_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(hosts_file, "w") as f:
-        for red in context["redes"]: f.write(red + "\n")
+    _escribir_hosts_file(hosts_file, context, target)
 
     args = [str(context["bin_path"]), f"-T{timing}"]
 
@@ -272,8 +370,6 @@ def personalizado_gui(context, protocol, tcp_type=None, timing=4, port_mode="top
         args.append("-sU")
     elif protocol == "sctp":
         args.append("-sY")
-    else:
-        raise ValueError(f"Protocolo desconocido: {protocol}")
 
     if port_mode == "specific":
         args.extend(["-p", str(port_value)])
@@ -283,8 +379,6 @@ def personalizado_gui(context, protocol, tcp_type=None, timing=4, port_mode="top
         args.extend(["--port-ratio", str(port_value)])
     elif port_mode == "all":
         args.append("-p-")
-    else:
-        raise ValueError(f"Modo de puertos desconocido: {port_mode}")
 
     args.extend(["-iL", str(hosts_file), "-oN", f"{result_path}_normal.txt", "-oG", f"{result_path}_grepable.txt", "-oX", f"{result_path}.xml"])
     elevation.ejecutar_elevado(args)
