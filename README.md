@@ -213,7 +213,7 @@ La idea es mantener `main` siempre funcional y evitar que el trabajo de una pers
 
 ---
 
-## 🌿 ¿Cómo trabajaremos?
+## ¿Cómo trabajaremos?
 
 Nuestro flujo será:
 
@@ -257,7 +257,7 @@ test/pruebas-api
 
 ---
 
-# 📌 1. Antes de empezar a trabajar
+#  1. Antes de empezar a trabajar
 
 Siempre debemos asegurarnos de tener la versión más reciente de `main`.
 
@@ -268,7 +268,7 @@ git pull
 
 ---
 
-# 🌱 2. Crear una nueva branch
+#  2. Crear una nueva branch
 
 Para crear una branch y movernos automáticamente a ella:
 
@@ -306,7 +306,7 @@ Los nombres deben ser **claros y descriptivos**.
 
 ---
 
-# 🔀 3. Cambiar de branch
+#  3. Cambiar de branch
 
 Para movernos a otra branch:
 
@@ -342,7 +342,7 @@ git status
 
 ---
 
-# 💾 4. Hacer cambios y commits
+#  4. Hacer cambios y commits
 
 Una vez dentro de nuestra branch, trabajamos normalmente.
 
@@ -373,7 +373,7 @@ Podemos realizar tantos commits como sean necesarios dentro de nuestra branch.
 
 ---
 
-# ☁️ 5. Subir nuestra branch a GitHub
+#  5. Subir nuestra branch a GitHub
 
 La primera vez que subamos una branch:
 
@@ -397,7 +397,7 @@ La branch aparecerá en GitHub.
 
 ---
 
-# 🔎 6. Pull Request
+#  6. Pull Request
 
 Cuando terminemos nuestro trabajo **NO hacemos merge directamente a `main`**.
 
@@ -480,7 +480,7 @@ Una vez hecho el merge, la branch puede eliminarse si ya no es necesaria.
 
 ---
 
-# 🔀 7. ¿Cómo hacer un merge?
+#  7. ¿Cómo hacer un merge?
 
 Si por alguna razón necesitamos hacer el merge desde Git, el proceso es:
 
@@ -518,7 +518,7 @@ Sin embargo, **para el trabajo normal del equipo utilizaremos Pull Requests en G
 
 ---
 
-# ⚠️ 8. ¿Qué pasa si `main` cambió mientras trabajábamos?
+#  8. ¿Qué pasa si `main` cambió mientras trabajábamos?
 
 Esto será bastante común cuando varias personas trabajan al mismo tiempo.
 
@@ -562,7 +562,7 @@ Y continuamos normalmente.
 
 ---
 
-# 🗑️ 9. Eliminar una branch terminada
+#  9. Eliminar una branch terminada
 
 Una vez que nuestro Pull Request fue aceptado y la branch ya no es necesaria, podemos eliminarla.
 
@@ -588,7 +588,7 @@ GitHub también permite eliminarla directamente después de hacer Merge del Pull
 
 ---
 
-# 📋 10. Comandos que debemos conocer
+#  10. Comandos que debemos conocer
 
 | Acción                         | Comando                           |
 | ------------------------------ | --------------------------------- |
@@ -609,7 +609,7 @@ GitHub también permite eliminarla directamente después de hacer Merge del Pull
 
 ---
 
-# 🚀 11. Flujo que debemos memorizar
+#  11. Flujo que debemos memorizar
 
 En la práctica, la mayoría de nuestro trabajo seguirá este proceso:
 
@@ -671,7 +671,7 @@ git branch -d feature/mi-cambio
 
 ---
 
-# 🧠 IMPORTANTE
+#  IMPORTANTE
 
 Una **branch representa un cambio lógico**, no un commit.
 
@@ -705,7 +705,7 @@ lo correcto es utilizar dos branches independientes.
 
 ---
 
-## 🎯 En resumen
+##  En resumen
 
 La regla que seguiremos es:
 
