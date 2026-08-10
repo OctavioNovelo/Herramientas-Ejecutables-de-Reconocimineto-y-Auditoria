@@ -50,6 +50,7 @@ def _escribir_hosts_file(hosts_file, context, target=None):
 
 
 # Aqui empiezan las funciones que ejecutan los diff escaneos
+# En pruebas aprox 10s por host.
 def escaneo_rapido(context, target=None):
     base_path = Path(__file__).parent.parent
     hosts_file = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "hosts.txt"
@@ -58,13 +59,14 @@ def escaneo_rapido(context, target=None):
 
     _escribir_hosts_file(hosts_file, context, target)
 
-    args = [str(context["bin_path"]), "-sS", "-F", "-Pn", "-n", "-O",
+    args = [str(context["bin_path"]), "-sS", "-F", "-Pn", "-n", "--max-retries", "3", "--max-rtt-timeout", "2500ms", "--min-rtt-timeout", "1500ms","--reason",
             "-iL", str(hosts_file),
             "-oN", f"{result_path}_normal.txt",
             "-oG", f"{result_path}_grepable.txt",
             "-oX", f"{result_path}.xml"]
     elevation.ejecutar_elevado(args)
 
+# Pendiente por revisar si es util la neta.
 def vulnerabilidades(context, timing_level=3, target=None):
     base_path = Path(__file__).parent.parent
     hosts_file = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "hosts.txt"
@@ -81,6 +83,7 @@ def vulnerabilidades(context, timing_level=3, target=None):
     elevation.ejecutar_elevado(args)
 
 # Consolida todas las técnicas en un único escaneo exhaustivo
+# REESCRIBIR FULL_PACK
 def full_pack(context, target=None):
     """
     FULL PACK: Ejecuta un análisis integral combinando las 6 categorías del auditor.
@@ -138,6 +141,13 @@ def dispositivos_ocultos(context, timing_level=3, target=None):
             "-oX", f"{result_path}.xml"]
 
     elevation.ejecutar_elevado(args)
+
+# CREAR ESCANEO PROFUNDO PARA LOS DISPOSITIVOS OCULTOS.
+# CREAR ESCANEO PROFUNDO PARA LOS DISPOSITIVOS OCULTOS.
+# EL ULTIMO CODIGO DE CLAUDE TIENE LA IMPLEMENTACION DE 
+# 3 NUEVOS ESCANEOS PARA DISPOSITIVOS OCULTOS,
+# SOLO LOS PRIMEROS 2 FUNCIONAN BIEN, PERO EL TERCERO HAY QUE 
+# REDUCIR EL TIEMPO DE ESCANEO ANTES DE IMPLEMENTAR.
 
 def admin_audit(context, target=None):
     """Searches for exposed management panels."""

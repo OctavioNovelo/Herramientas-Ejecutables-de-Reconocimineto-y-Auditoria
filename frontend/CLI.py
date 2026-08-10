@@ -114,7 +114,7 @@ def nmap_cli(contexto):
                 desc = ("- Detecta dispositivos 'invisibles u ocultos' que no responden a los Pings tradicionales.\n"
                         "- Escaneo TCP/SYN fragmentado, longitud de datos extra y no usamos Ping.\n"
                         "- Permite saltar firewalls y evita IDS")
-                if confirmar_escaneo("DDETECCION DE DISPOSITIVOS OCULTOS", desc):
+                if confirmar_escaneo("DETECCION DE DISPOSITIVOS OCULTOS", desc):
                     limpiar_pantalla()
                     print("\n Buscando dispositivos ocultos....\n")
                     context = ejec.ejecutar_herramienta(contexto["tool"], contexto["os_folder"])
