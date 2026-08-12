@@ -1,4 +1,5 @@
 import subprocess
+import re
 from pathlib import Path
 import frontend.CLI
 from utils import elevation
@@ -83,16 +84,19 @@ def vulnerabilidades(context, timing_level=3, target=None):
     elevation.ejecutar_elevado(args)
 
 # Consolida todas las técnicas en un único escaneo exhaustivo
-# REESCRIBIR FULL_PACK
+# PENDIENTE POR CONFIRMAR SI REALMENTE HACE TODOS.
 def full_pack(context, target=None):
     """
-    FULL PACK: Ejecuta un análisis integral combinando las 6 categorías del auditor.
+    FULL PACK: Ejecuta un análisis integral combinando las técnicas de reconocimiento
+    de las diferentes categorías del auditor, excepto vulnerabilidades.
+
     1. Escaneo Rapido
-    2. Vulnerabilidades
-    3. Ghost Hunter
-    4. Auditoría Admin (Puertos de gestión)
-    5. Ghost ID (Identificación agresiva de dispositivos)
-    6. Monitor Consumo (Puertos de multimedia/juegos)
+    2. Ghost Hunter
+    3. Auditoría Admin (Puertos de gestión)
+    4. Ghost ID (Identificación de dispositivos)
+    5. Monitor Consumo (Puertos de multimedia/juegos)
+
+    No ejecuta el análisis de vulnerabilidades.
     """
     base_path = Path(__file__).parent.parent
     result_path_base = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "full_pack"
@@ -101,53 +105,163 @@ def full_pack(context, target=None):
 
     _escribir_hosts_file(hosts_file, context, target)
 
-    # Puertos combinados de Auditoría Admin y Monitor Consumo
-    # Admin: 21,22,23,80,443,623,902,1433,2082,2083,2086,2087,3306,3389,3391,5900,5985,8080,8443,8880
-    # Consumo: 1935,3478,3479,3480,5060,5061,80,443,27015-27030
-    puertos = "21,22,23,80,443,623,902,1433,1935,2082,2083,2086,2087,3306,3389,3391,3478-3480,5060,5061,5900,5985,8080,8443,8880,27015-27030"
+    # Descubrimiento de hosts:
+    # PR: ARP discovery
+    # PS: SYN ping sobre puertos comunes
+    # PA: ACK ping sobre puertos comunes
+    # PU: UDP ping sobre DNS
+    #
+    # No se utiliza -Pn porque se desea que Nmap determine qué hosts están activos.
+
+    # Todos los puertos TCP son incluidos, por lo que también se cubren
+    # automáticamente los puertos utilizados por Auditoría Admin y Monitor Consumo.
+    #
+    # UDP mantiene únicamente los puertos utilizados por Identificación de dispositivos,
+    # ya que realizar un escaneo UDP completo sería considerablemente más costoso.
+    puertos = "T:1-65535,U:137,139,445,5353,5355,1900"
 
     args = [
         str(context["bin_path"]),
-        "-A",                # Ghost ID: OS detection, Version detection, Script scanning, Traceroute
-        "-sS",               # Internet Lento/Ghost Hunter: Stealth SYN scan
-        "-Pn",               # Ghost Hunter: No ping (salta firewalls)
-        "-f",                # Ghost Hunter: Fragmentación de paquetes
-        "--data-length", "24", # Ghost Hunter: Tamaño de datos extra para evadir firmas
-        "--script", "vuln",  # Vulnerabilidades: Motor de scripts para fallos conocidos
-        "-p", puertos,       # Combinación de puertos críticos de Admin y Consumo
-        "-T4",               # Balance entre velocidad y agresividad
+
+        # Ghost Hunter: Descubrimiento de hosts
+        "-PR",
+        "-PS22,80,443",
+        "-PA80,443",
+        "-PU53",
+
+        # Escaneo TCP
+        "-sS",
+
+        # Ghost ID: Detección de sistema operativo y servicios
+        "-sV",
+        "-O",
+        "--osscan-guess",
+
+        # Ghost ID: Identificación de dispositivos mediante NSE
+        "--script", "nbstat,smb-os-discovery,dns-service-discovery",
+
+        # Ghost Hunter: Técnicas de evasión
+        "-f",
+        "--data-length", "24",
+        "--randomize-hosts",
+        "-D", "RND:5,ME",
+        "--defeat-rst-ratelimit",
+
+        # Puertos TCP completos + UDP utilizado para identificación
+        "-p", puertos,
+
+        # Configuración general
+        "-n",
+        "-T4",
+
         "-iL", str(hosts_file),
         "-oN", f"{result_path}_normal.txt",
         "-oG", f"{result_path}_grepable.txt",
         "-oX", f"{result_path}.xml"
     ]
 
-    print(f"\n[+] Iniciando FULL PACK. Este proceso es exhaustivo y tomará tiempo...\n")
     elevation.ejecutar_elevado(args)
 
-def dispositivos_ocultos(context, timing_level=3, target=None):
-    """Detects hidden intruders using fragmented scans and no ping."""
+def _extraer_ips_vivas_de_grepable(ruta_grepable):
+    """
+    Extrae las IPs marcadas como 'Status: Up' de un archivo grepable (-oG) de Nmap.
+    Se usa para pasar de la etapa 1 (sondeo liviano) a la etapa 2 (escaneo profundo) en
+    dispositivos_ocultos(), sin tener que volver a barrer la subred completa.
+    """
+    ips_vivas = []
+    try:
+        with open(ruta_grepable, "r") as f:
+            for linea in f:
+                m = re.match(r"Host:\s+(\S+)\s+.*Status:\s+Up", linea)
+                if m:
+                    ips_vivas.append(m.group(1))
+    except FileNotFoundError:
+        pass
+    return ips_vivas
+
+
+def dispositivos_ocultos(context, timing_level=4, target=None):
+    """
+    Detección de dispositivos ocultos, en DOS ETAPAS para no disparar el tráfico y la
+    complejidad de un único escaneo agresivo contra la subred completa:
+
+      Etapa 1 (sondeo liviano): descubre qué IPs están realmente activas combinando varias
+      técnicas de ping (SYN a 22/80/443, ACK a 80/443, UDP a 53, traceroute -PR) sin hacer
+      escaneo de puertos todavía. IMPORTANTE: no lleva -Pn — si -Pn estuviera presente,
+      Nmap saltaría el descubrimiento de host por completo y marcaría a TODOS los hosts
+      como activos sin comprobar nada, anulando el propósito de esta etapa.
+
+      Etapa 2 (escaneo_profundo): el escaneo agresivo real (todos los puertos, detección
+      de servicio/SO, señuelos) se aplica SOLO a las IPs que la etapa 1 confirmó como
+      activas — no a la subred completa.
+
+    El resultado que ve el usuario en la pestaña "Dispositivos Ocultos" es el de la etapa 2
+    (ver viewState.ts, categoría 'ocultos' -> file_base 'escaneo_profundo').
+    """
     base_path = Path(__file__).parent.parent
-    result_path_base = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "dispositivos_ocultos"
-    result_path = file_number(result_path_base)
-    hosts_file = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "hosts.txt"
+    resultados_dir = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap"
+    hosts_file = resultados_dir / "hosts.txt"
+    hosts_vivos_file = resultados_dir / "hosts_vivos.txt"
 
     _escribir_hosts_file(hosts_file, context, target)
 
-    args = [str(context["bin_path"]), "-sS", "-Pn", "-f", "--data-length", "24", f"-T{timing_level}", "-n",
+    # --- Etapa 1: sondeo liviano (resultado intermedio, no se muestra en la UI) ---
+    # En pruebas aprox 1 minuto por host.
+    sondeo_base = resultados_dir / "host_vivos"
+    sondeo_path = file_number(sondeo_base)
+    args_sondeo = [
+        str(context["bin_path"]),
+        "-PR", "-PS22,80,443", "-PA80,443", "-PU53",
+        "-n", "--randomize-hosts", f"-T{timing_level}",
+        "-iL", str(hosts_file),
+        "-oG", f"{sondeo_path}_grepable.txt",
+    ]
+    elevation.ejecutar_elevado(args_sondeo)
+
+    ips_vivas = _extraer_ips_vivas_de_grepable(f"{sondeo_path}_grepable.txt")
+    if not ips_vivas:
+        print("[!] El sondeo inicial no encontró hosts activos; se omite el escaneo profundo.")
+        return
+
+    with open(hosts_vivos_file, "w") as f:
+        for ip in ips_vivas:
+            f.write(ip + "\n")
+
+    # --- Etapa 2: escaneo profundo, solo sobre los hosts confirmados activos ---
+    escaneo_profundo(context, timing_level=3, hosts_file_override=hosts_vivos_file)
+
+# Esta madre en las pruebas tardo 1hr en total con 6 host escaneando 65,535 puertos (en cada host)
+# Aprox 10 min por host. Podriamos reducir el tiempo NO escaneando todos los puertos.
+def escaneo_profundo(context, timing_level=4, hosts_file_override=None):
+    """
+    Escaneo agresivo (todos los puertos, detección de servicio/SO, señuelos) sobre un
+    conjunto de hosts. Normalmente se invoca desde dispositivos_ocultos() como su segunda
+    etapa, con 'hosts_file_override' apuntando a los hosts que el sondeo previo confirmó
+    como activos — NUNCA se regenera ese archivo aquí con _escribir_hosts_file(), porque
+    eso sobrescribiría la lista filtrada con la subred completa otra vez, anulando el punto
+    de tener dos etapas. También puede llamarse directo (sin hosts_file_override) para
+    escanear la subred/target detectado, igual que el resto de las categorías.
+    """
+    base_path = Path(__file__).parent.parent
+    resultados_dir = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap"
+    result_path_base = resultados_dir / "escaneo_profundo"
+    result_path = file_number(result_path_base)
+
+    if hosts_file_override:
+        hosts_file = hosts_file_override
+    else:
+        hosts_file = resultados_dir / "hosts.txt"
+        _escribir_hosts_file(hosts_file, context, target=None)
+
+    args = [str(context["bin_path"]), "-sS", "-sV", "-O", "-p-", "--randomize-hosts", "-D", "RND:5,ME", "--data-length", "24", f"-T{timing_level}",
             "-iL", str(hosts_file),
+            "--defeat-rst-ratelimit",  # Evita que firewalls/IPS limiten el escaneo (SIN EMBARGO PUEDE MARCAR ALGUNOS CERRADOS COMO FILTRADOS)
             "-oN", f"{result_path}_normal.txt",
             "-oG", f"{result_path}_grepable.txt",
             "-oX", f"{result_path}.xml"]
 
     elevation.ejecutar_elevado(args)
 
-# CREAR ESCANEO PROFUNDO PARA LOS DISPOSITIVOS OCULTOS.
-# CREAR ESCANEO PROFUNDO PARA LOS DISPOSITIVOS OCULTOS.
-# EL ULTIMO CODIGO DE CLAUDE TIENE LA IMPLEMENTACION DE 
-# 3 NUEVOS ESCANEOS PARA DISPOSITIVOS OCULTOS,
-# SOLO LOS PRIMEROS 2 FUNCIONAN BIEN, PERO EL TERCERO HAY QUE 
-# REDUCIR EL TIEMPO DE ESCANEO ANTES DE IMPLEMENTAR.
 
 def admin_audit(context, target=None):
     """Searches for exposed management panels."""
@@ -201,7 +315,11 @@ def indentificar_dispositivos(context, timing_level=4, target=None):
 
     _escribir_hosts_file(hosts_file, context, target)
 
-    args = [str(context["bin_path"]), "-A", f"-T{timing_level}", "-Pn",
+    # Aqui tengo un conflicto para hacerlo eficiente tuve que escanear puertos especificos que contengan informacion del dispositivo.
+    # como bien sabemos cada puerto puede ser cualqueir cosa por lo que personalmente NO me gusta solo escanear puertos especificos.
+    # Si se queda con puertos especificos recordar que hay 65mil puertos, por lo que habria que averiguar cuales de esos tienen mas probabilidad de tener informacion
+    # que necesitamos
+    args = [str(context["bin_path"]), "-A", "-O", "-sU", "-sS", "-p", "137,139,445,5353,5355,1900", "--script", "nbstat,smb-os-discovery,dns-service-discovery", "--osscan-guess",
             "-iL", str(hosts_file),
             "-oN", f"{result_path}_normal.txt",
             "-oG", f"{result_path}_grepable.txt",
@@ -209,6 +327,10 @@ def indentificar_dispositivos(context, timing_level=4, target=None):
 
     elevation.ejecutar_elevado(args)
 
+
+# Esto me dice que protocolos consumen mas ancho de banda.
+# NO me dice cuanto y como estan consumiendo.
+# ABRIA que implementar wireshark o tcpdump. REVISAR
 def monitor_consumo(context, timing_level=4, target=None):
     """Searches for high-consumption protocols."""
     base_path = Path(__file__).parent.parent

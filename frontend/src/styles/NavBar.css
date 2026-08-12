@@ -71,14 +71,15 @@
    usando la misma técnica de gradiente y las mismas variables de color para que sea
    visualmente el MISMO logo, solo más pequeño — no un diseño distinto. */
 .hera-navbar-logo-icon {
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: var(--color-accent);
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  filter: drop-shadow(0 0 3px rgba(27, 161, 191, 0.4));
+  /* Altura fija + ancho automático: escala proporcionalmente sin deformar el logo,
+     sin importar cuál sea su relación de aspecto real (asumí que "1600x16000" en el
+     mensaje del usuario fue un error de tipeo — con height fijo + width:auto esto es
+     seguro de todas formas, deforma cero si la proporción real es distinta). */
+  height: 34px;
+  width: auto;
+  max-width: 140px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 4px rgba(27, 161, 191, 0.35));
 }
 
 .hera-navbar-logo-text {

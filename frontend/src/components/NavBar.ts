@@ -4,6 +4,9 @@
 
 import { viewState } from "../state/viewState";
 import "../styles/NavBar.css";
+// Import de Vite: en build/dev, esto resuelve a la URL final del asset ya empaquetado
+// (no es una ruta de texto literal — Vite copia el archivo y devuelve su URL real).
+import logoImg from "../../images/logo.png";
 
 export class NavBar {
   private element: HTMLElement;
@@ -36,9 +39,7 @@ export class NavBar {
     const logoBtn = document.createElement("button");
     logoBtn.className = "hera-navbar-logo";
     logoBtn.innerHTML = `
-      <svg class="hera-navbar-logo-icon" viewBox="0 0 24 24">
-        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
-      </svg>
+      <img class="hera-navbar-logo-icon" src="${logoImg}" alt="HERA" />
       <span class="hera-navbar-logo-text">HERA</span>
     `;
     logoBtn.addEventListener("click", () => viewState.goToDashboard());

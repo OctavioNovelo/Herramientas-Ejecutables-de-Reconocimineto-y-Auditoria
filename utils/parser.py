@@ -1,7 +1,3 @@
-# utils/parser.py
-# ESTA ARCHIVO ES ORO. Aqui ocurre la magia de parsear los XML de Nmap y convertirlos en datos útiles para la UI y el dashboard.
-# Esta un 80% hecho por IA por lo que aqui hay muchas vulnerabilidades y deudas tecnicas
-# Si algun archivo se lee mal o se tienen que agregar nuevos PARSER para nuevos archivos, aqui se modifica y/o crean
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from utils import vuln_classification
@@ -247,6 +243,23 @@ def agrupar_vulnerabilidades_para_mostrar(vulnerabilidades):
     return sueltas + list(grupos.values())
 
 
+def _clave_orden_ip(ip):
+    """
+    Convierte una IP en una tupla de enteros para poder ordenarla numéricamente
+    (10.0.0.2 antes que 10.0.0.13 — un ordenamiento de texto plano pondría "10.0.0.13"
+    primero porque '1' < '2' como caracter). Usado porque varios escaneos corren con
+    --randomize-hosts, así que el orden en que Nmap procesa los hosts (y por lo tanto el
+    orden en que aparecen en el XML) es aleatorio: sin esto, la lista de dispositivos
+    saldría en un orden distinto cada vez.
+
+    Si 'ip' no tiene el formato IPv4 esperado (ej. "Desconocido"), se ordena al final.
+    """
+    try:
+        return (0, tuple(int(octeto) for octeto in ip.split(".")))
+    except (ValueError, AttributeError):
+        return (1, ip)
+
+
 def _agrupar_por_dispositivo(filas, incluir_posibles=False):
     """Helper interno: agrupa filas planas (una por puerto) en dispositivos únicos por IP."""
     dispositivos = {}
@@ -293,7 +306,9 @@ def _agrupar_por_dispositivo(filas, incluir_posibles=False):
                 if not ya_existe:
                     dev['possible_vulnerabilities'].append(v)
 
-    return list(dispositivos.values())
+    # Se ordena por IP numérica (no alfabética) para que el orden sea consistente
+    # sin importar en qué orden haya procesado Nmap los hosts (--randomize-hosts).
+    return sorted(dispositivos.values(), key=lambda d: _clave_orden_ip(d['ip']))
 
 
 def obtener_dispositivos_agrupados(os_folder):

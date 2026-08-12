@@ -1,4 +1,5 @@
-// Estado de navegación entre las "pestañas" de la app (Dashboard, Mapear, Detectar,
+// Archivo: frontend/src/state/viewState.ts
+// Razón: Estado de navegación entre las "pestañas" de la app (Dashboard, Mapear, Detectar,
 // Vulnerar). Separado de scanState.ts a propósito: scanState gestiona DATOS de red
 // (dispositivos, estadísticas, escaneos en curso); viewState solo gestiona QUÉ VISTA se
 // muestra. Un escaneo en curso sigue corriendo igual sin importar qué pestaña esté activa,
@@ -27,7 +28,11 @@ export interface ScanCategory {
 export const SCAN_CATEGORIES: ScanCategory[] = [
   { id: "rapido", label: "Escaneo rápido", file_base: "escaneo_rapido", group: "mapear" },
   { id: "vuln", label: "Vulnerabilidades", file_base: "vulnerabilidades", group: "detectar" },
-  { id: "ocultos", label: "Dispositivos ocultos", file_base: "dispositivos_ocultos", group: "mapear" },
+  // NOTA: file_base es "escaneo_profundo", no "dispositivos_ocultos". La función
+  // tools/nmap.py::dispositivos_ocultos() corre en 2 etapas (sondeo liviano + escaneo
+  // profundo); el resultado que se muestra en esta pestaña es el de la SEGUNDA etapa
+  // (escaneo_profundo), que es la que realmente escribe el .xml con los datos finales.
+  { id: "ocultos", label: "Dispositivos ocultos", file_base: "escaneo_profundo", group: "mapear" },
   { id: "admin", label: "Auditoría admin", file_base: "admin_audit", group: "mapear" },
   { id: "id", label: "Identificación", file_base: "ind_disp", group: "mapear" },
   { id: "consumo", label: "Monitor consumo", file_base: "consumo", group: "mapear" },
