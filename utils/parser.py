@@ -1,3 +1,4 @@
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from utils import vuln_classification
@@ -14,6 +15,55 @@ def buscar_en_gnmap(ruta_gnmap, termino_busqueda):
         return resultados
     except FileNotFoundError:
         return ["Error: No se encontró el archivo de resultados. Ejecuta un escaneo primero."]
+
+
+def _extraer_nombre_identificado(host):
+    """
+    Busca un nombre "amigable" de dispositivo en los scripts NSE de identificación
+    (dns-service-discovery, nbstat, smb-os-discovery). Estos suelen dar nombres reales
+    configurados por el usuario/fabricante (ej. "Juan", "32in Hisense Roku TV"), a diferencia
+    de hostnames/hostname (que casi nunca viene resuelto en redes domésticas) o el vendor de
+    la MAC (que solo dice el fabricante del chip, no qué dispositivo es).
+    Devuelve None si ningún script trae un nombre utilizable.
+    """
+    # 1. dns-service-discovery: <table key="7000/tcp airplay"><elem key="name">Juan</elem>...
+    #    Puede haber varias "tables" (una por servicio anunciado); se prioriza airplay/display
+    #    porque suelen traer el nombre que el usuario le puso al dispositivo. Servicios como
+    #    spotify-connect a veces anuncian un UUID en vez de un nombre real, así que esos se filtran.
+    for script in host.findall(".//script[@id='dns-service-discovery']"):
+        candidato = None
+        for tabla in script.findall('table'):
+            nombre_el = tabla.find("elem[@key='name']")
+            if nombre_el is None or not nombre_el.text:
+                continue
+            nombre = nombre_el.text.strip()
+            if re.fullmatch(r'[0-9a-fA-F-]{20,}', nombre):
+                continue  # parece un UUID/ID aleatorio, no un nombre real
+            key = tabla.get('key', '')
+            if 'airplay' in key or 'display' in key:
+                return nombre
+            if candidato is None:
+                candidato = nombre
+        if candidato:
+            return candidato
+
+    # 2. nbstat: nombre NetBIOS del equipo
+    for script in host.findall(".//script[@id='nbstat']"):
+        el = script.find("elem[@key='server_name']")
+        if el is None:
+            el = script.find("elem[@key='netbios_name']")
+        if el is not None and el.text:
+            return el.text.strip()
+
+    # 3. smb-os-discovery: nombre de equipo / FQDN (Windows)
+    for script in host.findall(".//script[@id='smb-os-discovery']"):
+        el = script.find("elem[@key='computer_name']")
+        if el is None:
+            el = script.find("elem[@key='fqdn']")
+        if el is not None and el.text:
+            return el.text.strip()
+
+    return None
 
 
 def generar_tabla_xml(ruta_xml):
@@ -41,7 +91,11 @@ def generar_tabla_xml(ruta_xml):
         vendor = mac_el.get('vendor') if mac_el is not None else ""
 
         hostname_el = host.find('hostnames/hostname')
-        hostname = hostname_el.get('name') if hostname_el is not None else ""
+        hostname_dns = hostname_el.get('name') if hostname_el is not None else ""
+        # Se prioriza el nombre "amigable" sacado de scripts de identificación (dns-service-discovery,
+        # nbstat, smb-os-discovery) sobre el hostname DNS crudo, porque suele ser mucho más útil
+        # para el usuario (ej. "Juan" o "32in Hisense Roku TV" en vez de vacío o un mDNS genérico).
+        hostname = _extraer_nombre_identificado(host) or hostname_dns
 
         times_el = host.find('times')
         srtt = times_el.get('srtt') if times_el is not None else None
