@@ -34,12 +34,67 @@ export interface PossibleVulnerability {
   status: string;
 }
 
+// Detalle completo de un puerto (abierto o filtrado): protocolo, servicio detectado y,
+// si Nmap lo obtuvo, producto/versión/fingerprint — ver generar_tabla_xml en parser.py.
+export interface ServiceDetail {
+  port: number;
+  protocol?: string;
+  state: string; // 'open' | 'filtered'
+  reason?: string;
+  service: string;
+  reconocido: boolean; // false = nombre de servicio no confiable (vacío/unknown/tcpwrapped)
+  product?: string;
+  version?: string;
+  extrainfo?: string;
+  devicetype?: string;
+  fingerprint?: string;
+}
+
+// Un "guess" individual cuando Nmap no logra un match exacto de SO (accuracy < 100%).
+export interface OsGuess {
+  name?: string;
+  accuracy?: string;
+}
+
+// Detección de SO de un host — ver _extraer_os_info en parser.py. Puede venir vacía
+// (todos los campos en null/[]) si la categoría de escaneo no corrió -O (ej. Auditoría admin).
+export interface OsInfo {
+  device_types: string[];
+  exact_match: boolean;
+  running: string | null;
+  cpe: string | null;
+  cpes: string[];
+  details: string | null;
+  guesses: OsGuess[];
+  sin_match_exacto_msg: string | null;
+}
+
+// Duración de un escaneo — ver _extraer_info_escaneo en parser.py.
+export interface ScanTimeInfo {
+  segundos: number;
+  duracion_str: string;
+  inicio: string | null;
+  fin: string | null;
+}
+
 export interface Device {
   ip: string;
   device: string; // Hostname o fabricante (vendor)
   mac: string;
   services: string[];
   ports: number[];
+  // Puertos que respondieron "filtered" (probable firewall) en vez de "open"/"closed".
+  // Separados de 'ports'/'services' para no romper lo que ya los consume; útiles para
+  // saber qué está siendo bloqueado, no solo qué está expuesto.
+  filtered_ports: number[];
+  filtered_services: string[];
+  // Detalle por puerto (abiertos y filtrados): protocolo, producto/versión, fingerprint, etc.
+  service_details: ServiceDetail[];
+  // Detección de SO del host. null si la categoría de escaneo no corrió -O.
+  os_info: OsInfo | null;
+  // URLs "Location:" (SSDP/UPnP) encontradas en scripts NSE — suelen apuntar a un XML de
+  // descripción del dispositivo (fabricante, modelo, servicios).
+  location_urls: string[];
   vulnerabilities: Vulnerability[];
   latency: number; // en milisegundos (srtt / 1000)
 }
@@ -55,6 +110,9 @@ export interface ScanStats {
     low: number;
   };
   last_scan: string;
+  // Suma de la duración ('elapsed') de todos los XML combinados en el dashboard.
+  scan_time_total_seconds: number;
+  scan_time_total_str: string;
 }
 
 export interface DashboardData {
@@ -72,6 +130,9 @@ export interface CategoryResult {
   devices: CategoryDevice[];
   found: boolean;
   error?: string;
+  // Duración del escaneo de ESTA categoría en particular (obtener_resultados_categoria
+  // la saca de <runstats><finished> del propio XML). Ausente si el backend aún no la manda.
+  scan_time?: ScanTimeInfo;
 }
 
 const EMPTY_STATS: ScanStats = {
@@ -80,6 +141,8 @@ const EMPTY_STATS: ScanStats = {
   risk_level: "BAJO",
   vulns_by_severity: { critical: 0, high: 0, medium: 0, low: 0 },
   last_scan: "N/A",
+  scan_time_total_seconds: 0,
+  scan_time_total_str: "N/D",
 };
 
 // Verifica si la aplicación se está ejecutando dentro de Tauri

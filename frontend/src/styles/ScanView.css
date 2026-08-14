@@ -225,9 +225,59 @@
   color: #eab308;
 }
 
+/* Puertos "filtered" (probable firewall) — visualmente distintos de los abiertos */
+.hera-scan-badge.is-filtered {
+  background: rgba(234, 140, 8, 0.15);
+  color: #eab308;
+  border: 1px solid rgba(234, 140, 8, 0.4);
+}
+
+.hera-scan-filtered-badges {
+  margin-top: 6px;
+}
+
 .hera-scan-empty-note {
   color: #4a6072;
   font-size: 11.5px;
+}
+
+/* Duración del escaneo mostrado (pestaña Escaneo), arriba del grid de resultados */
+.hera-scan-time-note {
+  color: #6a8298;
+  font-size: 11.5px;
+  margin-bottom: 12px;
+}
+
+/* Bloque de detección de SO dentro de cada card de dispositivo */
+.hera-scan-os-info {
+  color: #8fa8bc;
+  font-size: 11px;
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+.hera-scan-os-label {
+  color: var(--color-primary, #5aa9c9);
+  font-weight: 700;
+}
+
+/* URLs "Location:" (SSDP/UPnP) encontradas en la identificación del dispositivo */
+.hera-scan-location-urls {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 8px;
+  font-size: 10.5px;
+}
+
+.hera-scan-location-urls a {
+  color: var(--color-accent, #38bdf8);
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.hera-scan-location-urls a:hover {
+  text-decoration: underline;
 }
 
 /* Vulnerabilidades: bloques Confirmadas / Posibles */

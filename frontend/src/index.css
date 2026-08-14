@@ -105,8 +105,10 @@ body {
   padding: 18px;
   box-shadow: var(--shadow-soft);
   width: 100%;
-  max-width: 800px;
+  max-width: 900px; /* Ensanchado para el 4to item (Tiempo Escaneando) */
   margin: 0 auto;
+  flex-wrap: wrap;
+  row-gap: 12px;
 }
 
 .hera-summary-item {

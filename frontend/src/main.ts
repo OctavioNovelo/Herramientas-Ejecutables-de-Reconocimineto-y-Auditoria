@@ -86,6 +86,11 @@ document.addEventListener("DOMContentLoaded", () => {
       <span class="hera-summary-value" id="stat-vulns">—</span>
       <span class="hera-summary-label">Vulnerabilidades</span>
     </div>
+    <div style="width:1px;height:36px;background:var(--color-border-inactive);"></div>
+    <div class="hera-summary-item">
+      <span class="hera-summary-value" id="stat-scan-time">—</span>
+      <span class="hera-summary-label">Tiempo Escaneando</span>
+    </div>
   `;
   dashboardContainer.appendChild(summaryBar);
   summaryBar.style.marginBottom = "24px";
@@ -170,9 +175,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const lastScanEl = document.getElementById("stat-last-scan");
     const hostsEl    = document.getElementById("stat-hosts");
     const vulnsEl    = document.getElementById("stat-vulns");
+    const scanTimeEl = document.getElementById("stat-scan-time");
 
     if (lastScanEl) lastScanEl.textContent = state.hasResults ? (state.stats?.last_scan ?? "—") : "—";
     if (hostsEl)    hostsEl.textContent    = state.hasResults ? (state.stats?.active_devices.toString() ?? "—") : "—";
+    if (scanTimeEl) scanTimeEl.textContent = state.hasResults ? (state.stats?.scan_time_total_str ?? "—") : "—";
     if (vulnsEl) {
       vulnsEl.textContent = state.hasResults ? (state.stats?.total_vulns ?? 0).toString() : "—";
       if (state.hasResults) {

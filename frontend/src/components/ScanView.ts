@@ -10,7 +10,7 @@
 
 import { viewState, ScanCategory } from "../state/viewState";
 import { scanState } from "../state/scanState";
-import { heraApi, CategoryDevice, Vulnerability, PossibleVulnerability, CustomScanParams } from "../api/heraApi";
+import { heraApi, CategoryDevice, Vulnerability, PossibleVulnerability, CustomScanParams, ScanTimeInfo } from "../api/heraApi";
 import { adminPortLabel, isAdminPortStandard, consumoPortLabel } from "../utils/portLabels";
 import "../styles/ScanView.css";
 
@@ -36,6 +36,10 @@ export class ScanView {
   // (usa la subred local detectada automáticamente); el usuario puede escribir cualquier
   // IP, rango o CIDR que Nmap acepte en un archivo -iL.
   private targetInput: string = "";
+
+  // Duración del último escaneo cargado para la categoría actual (viene de
+  // obtener_resultados_categoria -> 'scan_time'). Se resetea en cada carga.
+  private lastScanTime: ScanTimeInfo | null = null;
 
   constructor() {
     this.element = document.createElement("div");
@@ -388,6 +392,7 @@ export class ScanView {
 
     try {
       const result = await heraApi.getCategoryResults(cat.file_base);
+      this.lastScanTime = result.scan_time ?? null;
       if (!result.found || result.devices.length === 0) {
         this.resultsArea.innerHTML = `<p class="hera-scan-empty-note">Sin resultados previos para esta categoría. Ejecuta un escaneo para ver datos aquí.</p>`;
         return;
@@ -400,6 +405,16 @@ export class ScanView {
 
   private renderDevices(cat: ScanCategory, devices: CategoryDevice[]) {
     this.resultsArea.innerHTML = "";
+
+    // Duración del escaneo que generó estos resultados (ausente si el backend no la manda
+    // todavía para esta categoría, o si el XML no traía <runstats><finished>).
+    if (this.lastScanTime && this.lastScanTime.duracion_str !== "N/D") {
+      const timeNote = document.createElement("p");
+      timeNote.className = "hera-scan-time-note";
+      timeNote.textContent = `⏱ Duración del escaneo: ${this.lastScanTime.duracion_str}`;
+      this.resultsArea.appendChild(timeNote);
+    }
+
     const grid = document.createElement("div");
     // La categoría 'vuln' necesita más ancho por card: cada una se divide en 2 columnas
     // (Confirmadas/Posibles) que no caben cómodamente en el ancho mínimo genérico de 300px.
@@ -417,12 +432,32 @@ export class ScanView {
       `;
       card.appendChild(header);
 
+      // Detección de SO (si la categoría corrió -O y Nmap logró algo). Se muestra para
+      // cualquier categoría excepto 'vuln'/'consumo', que mantienen su presentación propia.
+      if (cat.id !== "vuln" && cat.id !== "consumo") {
+        const osBlock = this.renderOsInfo(dev);
+        if (osBlock) card.appendChild(osBlock);
+      }
+
       if (cat.id === "admin") {
         card.appendChild(this.renderAdminPorts(dev));
       } else if (cat.id === "consumo") {
         card.appendChild(this.renderConsumoPorts(dev));
       } else {
         card.appendChild(this.renderGenericBadges(dev));
+      }
+
+      // Puertos filtrados (probable firewall): se muestran para cualquier categoría excepto
+      // 'consumo' (esa vista es sobre protocolos reconocidos, no sobre exposición/firewall).
+      if (cat.id !== "consumo") {
+        const filteredBlock = this.renderFilteredPorts(dev);
+        if (filteredBlock) card.appendChild(filteredBlock);
+      }
+
+      // URLs "Location:" (SSDP/UPnP) — pistas de identificación del dispositivo.
+      if (cat.id !== "vuln" && cat.id !== "consumo") {
+        const locBlock = this.renderLocationUrls(dev);
+        if (locBlock) card.appendChild(locBlock);
       }
 
       if (cat.id === "vuln") {
@@ -439,6 +474,70 @@ export class ScanView {
     this.resultsArea.appendChild(grid);
   }
 
+  // Resume la detección de SO de un dispositivo (Device type / Running / OS details, o los
+  // "guesses" más probables cuando no hay match exacto). Devuelve null si no hay nada que
+  // mostrar (categoría no corrió -O, o Nmap no encontró ningún osmatch).
+  private renderOsInfo(dev: CategoryDevice): HTMLElement | null {
+    const os = dev.os_info;
+    if (!os) return null;
+
+    const wrap = document.createElement("div");
+    wrap.className = "hera-scan-os-info";
+
+    if (os.exact_match) {
+      const parts: string[] = [];
+      if (os.device_types.length > 0) parts.push(os.device_types.join(", "));
+      if (os.running) parts.push(os.running);
+      if (parts.length === 0 && os.details) parts.push(os.details);
+      if (parts.length === 0) return null;
+      wrap.innerHTML = `<span class="hera-scan-os-label">SO:</span> ${parts.join(" — ")}`;
+      if (os.details) wrap.title = os.details;
+    } else {
+      if (os.guesses.length === 0) return null;
+      const guessText = os.guesses
+        .map((g) => `${g.name ?? "?"} (${g.accuracy ?? "?"}%)`)
+        .join(", ");
+      wrap.innerHTML = `<span class="hera-scan-os-label">SO (sin match exacto):</span> ${guessText}`;
+    }
+
+    return wrap;
+  }
+
+  // Puertos que respondieron "filtered" en vez de "open"/"closed" — probable firewall
+  // bloqueando la respuesta. Se muestran en naranja, sin emoji, distintos al estilo de los
+  // puertos abiertos.
+  private renderFilteredPorts(dev: CategoryDevice): HTMLElement | null {
+    if (dev.filtered_ports.length === 0) return null;
+
+    const wrap = document.createElement("div");
+    wrap.className = "hera-scan-badges hera-scan-filtered-badges";
+    dev.filtered_services.forEach((srv) => {
+      const badge = document.createElement("span");
+      badge.className = "hera-scan-badge is-filtered";
+      badge.textContent = srv;
+      wrap.appendChild(badge);
+    });
+    return wrap;
+  }
+
+  // URLs "Location:" (SSDP/UPnP) capturadas por scripts NSE — suelen apuntar a un XML de
+  // descripción del dispositivo (fabricante, modelo). Se listan como enlaces clicables.
+  private renderLocationUrls(dev: CategoryDevice): HTMLElement | null {
+    if (dev.location_urls.length === 0) return null;
+
+    const wrap = document.createElement("div");
+    wrap.className = "hera-scan-location-urls";
+    dev.location_urls.forEach((url) => {
+      const link = document.createElement("a");
+      link.href = url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = url;
+      wrap.appendChild(link);
+    });
+    return wrap;
+  }
+
   private renderGenericBadges(dev: CategoryDevice): HTMLElement {
     const wrap = document.createElement("div");
     wrap.className = "hera-scan-badges";
@@ -446,10 +545,19 @@ export class ScanView {
       wrap.innerHTML = `<span class="hera-scan-empty-note">Sin puertos abiertos detectados</span>`;
       return wrap;
     }
-    dev.services.forEach((srv) => {
+    dev.ports.forEach((port, i) => {
       const badge = document.createElement("span");
       badge.className = "hera-scan-badge";
-      badge.textContent = srv;
+      badge.textContent = dev.services[i] ?? `${port}`;
+      const detail = dev.service_details.find((d) => d.port === port && d.state === "open");
+      if (detail) {
+        const bits = [detail.product, detail.version, detail.extrainfo].filter(Boolean);
+        if (bits.length > 0) {
+          badge.title = bits.join(" ");
+        } else if (!detail.reconocido && detail.fingerprint) {
+          badge.title = "Servicio no reconocido — fingerprint disponible";
+        }
+      }
       wrap.appendChild(badge);
     });
     return wrap;

@@ -66,12 +66,13 @@ export class ResultsTable {
     table.innerHTML = `
       <thead>
         <tr>
-          <th style="width: 15%">IP</th>
-          <th style="width: 25%">Dispositivo</th>
-          <th style="width: 15%">MAC</th>
-          <th style="width: 20%">Servicios</th>
-          <th style="width: 10%">Puertos</th>
-          <th style="width: 15%">Vulnerabilidades</th>
+          <th style="width: 12%">IP</th>
+          <th style="width: 19%">Dispositivo</th>
+          <th style="width: 12%">MAC</th>
+          <th style="width: 12%">SO</th>
+          <th style="width: 15%">Servicios</th>
+          <th style="width: 9%">Puertos</th>
+          <th style="width: 21%">Vulnerabilidades</th>
         </tr>
       </thead>
     `;
@@ -99,6 +100,23 @@ export class ResultsTable {
       tdMac.style.fontFamily = "monospace";
       tdMac.textContent = dev.mac;
       tr.appendChild(tdMac);
+
+      // Columna SO (detección de sistema operativo, si la categoría que la generó corrió -O)
+      const tdOs = document.createElement("td");
+      tdOs.style.fontSize = "0.75rem";
+      tdOs.style.opacity = "0.85";
+      if (dev.os_info?.exact_match) {
+        const label = dev.os_info.running || dev.os_info.device_types.join(", ") || "—";
+        tdOs.textContent = label;
+        if (dev.os_info.details) tdOs.title = dev.os_info.details;
+      } else if (dev.os_info?.guesses.length) {
+        tdOs.textContent = `${dev.os_info.guesses[0].name ?? "?"} (~${dev.os_info.guesses[0].accuracy ?? "?"}%)`;
+        tdOs.style.opacity = "0.55";
+      } else {
+        tdOs.textContent = "—";
+        tdOs.style.opacity = "0.35";
+      }
+      tr.appendChild(tdOs);
 
       // Columna Servicios
       const tdServices = document.createElement("td");
@@ -132,6 +150,9 @@ export class ResultsTable {
       portsBadge.style.fontWeight = "700";
       portsBadge.style.background = "rgba(27, 161, 191, 0.15)";
       portsBadge.textContent = dev.ports.length.toString();
+      if (dev.filtered_ports.length > 0) {
+        portsBadge.title = `+${dev.filtered_ports.length} puerto(s) filtrado(s) (probable firewall)`;
+      }
       tdPorts.appendChild(portsBadge);
       tr.appendChild(tdPorts);
 
