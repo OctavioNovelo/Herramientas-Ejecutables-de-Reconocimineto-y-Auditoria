@@ -1,4 +1,5 @@
-// Implementa los comandos nativos de Rust para leer directorios del sistema de forma
+// Archivo: frontend/src-tauri/src/main.rs
+// Razón: Implementa los comandos nativos de Rust para leer directorios del sistema de forma
 // segura, obtener la dirección de red auditada, correr subprocesos de escaneo, y exponer el
 // análisis ya procesado por utils/parser.py (fuente única de verdad, compartida con el CLI).
 
@@ -16,10 +17,19 @@ struct ScanFile {
 }
 
 // Helper para encontrar la raíz del espacio de trabajo de HERA
+// Localiza la raíz del proyecto buscando hacia arriba en el árbol de carpetas hasta
+// encontrar HERA.py (el punto de entrada del CLI). Se usa HERA.py como marcador —y NO
+// utils/Resultados/— porque esa carpeta de resultados se crea de forma perezosa recién
+// cuando corre el primer escaneo (ver _escribir_hosts_file en tools/nmap.py). En una
+// instalación limpia, sin ningún escaneo previo, utils/Resultados/ no existe en ningún
+// lado del árbol, la búsqueda nunca encuentra nada, y el fallback termina devolviendo el
+// directorio de trabajo del proceso de Tauri (típicamente frontend/src-tauri/ en modo
+// dev) — la raíz equivocada, lo que rompe cualquier `from utils.xxx import ...` con
+// "No module named 'utils'". HERA.py, en cambio, existe desde el primer `git clone`.
 fn find_workspace_root() -> Option<PathBuf> {
     let mut dir = std::env::current_dir().ok()?;
     loop {
-        if dir.join("utils").join("Resultados").exists() {
+        if dir.join("HERA.py").exists() {
             return Some(dir);
         }
         if let Some(parent) = dir.parent() {
