@@ -222,5 +222,13 @@ export const heraApi = {
     });
   },
 
+async cancelScan(): Promise<string> {
+    if (!isTauri()) {
+        throw new Error("La cancelación solo está disponible dentro de la aplicación nativa de HERA.");
+    }
+
+    return await invoke<string>("cancel_nmap_scan");
+},
+
   startCustomScan,
 };

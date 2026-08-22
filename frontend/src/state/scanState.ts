@@ -1,10 +1,17 @@
 // Archivo: frontend/src/state/scanState.ts
+
 // Razón: Administra la reactividad del sistema (estado del botón de escaneo, datos de la tabla,
 // estadísticas actuales) y notifica a los componentes cuando hay cambios. Los datos de
 // dispositivos/estadísticas llegan ya procesados desde heraApi.getDashboardData()
 // (que a su vez viene de utils/parser.py — una sola fuente de verdad, compartida con el CLI).
 
-import { heraApi, Device, ScanStats, HostInfo, CustomScanParams } from "../api/heraApi";
+import {
+  heraApi,
+  Device,
+  ScanStats,
+  HostInfo,
+  CustomScanParams,
+} from "../api/heraApi";
 
 export interface AppState {
   isScanning: boolean;
@@ -36,6 +43,7 @@ class ScanStateManager {
   subscribe(callback: Subscriber): () => void {
     this.subscribers.add(callback);
     callback(this.state);
+
     return () => {
       this.subscribers.delete(callback);
     };
@@ -49,28 +57,32 @@ class ScanStateManager {
     return { ...this.state };
   }
 
-  // Refresca la información leyendo el dashboard combinado (dispositivos + estadísticas).
-  // Si algo falla de verdad (no simplemente "no hay escaneos"), se refleja en state.error
-  // y NO se simula que hay resultados.
+  // Refresca la información leyendo el dashboard combinado.
   async refreshData() {
     try {
       this.state.hostInfo = await heraApi.getHostInfo();
 
       const { devices, stats } = await heraApi.getDashboardData();
+
       this.state.devices = devices;
       this.state.hasResults = devices.length > 0;
       this.state.stats = stats;
       this.state.error = null;
     } catch (err: any) {
       console.error("Error al refrescar estado global:", err);
-      this.state.error = typeof err === "string" ? err : (err?.message ?? "Error al leer los datos de red.");
+
+      this.state.error =
+        typeof err === "string"
+          ? err
+          : (err?.message ?? "Error al leer los datos de red.");
+
       this.state.hasResults = false;
     } finally {
       this.notify();
     }
   }
 
-  // Inicia un escaneo de red real
+  // Inicia un escaneo de red real.
   async startScan(scanType: string = "full_pack", target?: string) {
     if (this.state.isScanning) return;
 
@@ -80,21 +92,30 @@ class ScanStateManager {
 
     try {
       await heraApi.startScan(scanType, target);
-      // trigger_nmap_scan es síncrono del lado de Rust/Python (await bloqueante),
-      // así que al volver aquí el escaneo ya terminó: recargamos datos de inmediato.
+
+      // Cuando Rust/Python termina el escaneo, recargamos los datos.
       await this.refreshData();
+
     } catch (err: any) {
       console.error("Error al iniciar el escaneo:", err);
-      this.state.error = typeof err === "string" ? err : (err?.message ?? "Fallo en el escaneo.");
+
+      const mensaje =
+        typeof err === "string"
+          ? err
+          : (err?.message ?? "Fallo en el escaneo.");
+
+      // Si fue una cancelación, no mostramos un error.
+      if (mensaje !== "ESCANEO_CANCELADO") {
+        this.state.error = mensaje;
+      }
+
     } finally {
       this.state.isScanning = false;
       this.notify();
     }
   }
 
-  // Inicia el escaneo "Personalizado" con parámetros explícitos (pestaña Escaneo).
-  // Comparte el mismo guard 'isScanning' que startScan(): nunca deben correr dos escaneos
-  // nmap al mismo tiempo, porque ambos escriben sobre el mismo hosts.txt.
+  // Inicia el escaneo "Personalizado".
   async startCustomScan(params: CustomScanParams) {
     if (this.state.isScanning) return;
 
@@ -104,12 +125,46 @@ class ScanStateManager {
 
     try {
       await heraApi.startCustomScan(params);
+
       await this.refreshData();
+
     } catch (err: any) {
-      console.error("Error al iniciar el escaneo personalizado:", err);
-      this.state.error = typeof err === "string" ? err : (err?.message ?? "Fallo en el escaneo personalizado.");
+      console.error(
+        "Error al iniciar el escaneo personalizado:",
+        err
+      );
+
+      const mensaje =
+        typeof err === "string"
+          ? err
+          : (err?.message ?? "Fallo en el escaneo personalizado.");
+
+      // Si fue una cancelación, no mostramos un error.
+      if (mensaje !== "ESCANEO_CANCELADO") {
+        this.state.error = mensaje;
+      }
+
     } finally {
       this.state.isScanning = false;
+      this.notify();
+    }
+  }
+
+  // Cancela el escaneo actualmente en ejecución.
+  async cancelScan() {
+    if (!this.state.isScanning) return;
+
+    try {
+      await heraApi.cancelScan();
+
+    } catch (err: any) {
+      console.error("Error al cancelar el escaneo:", err);
+
+      this.state.error =
+        typeof err === "string"
+          ? err
+          : (err?.message ?? "No se pudo cancelar el escaneo.");
+
       this.notify();
     }
   }

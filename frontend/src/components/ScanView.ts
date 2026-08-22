@@ -131,9 +131,39 @@ export class ScanView {
 
     const runBtn = document.createElement("button");
     runBtn.className = "hera-scanview-run-btn";
-    runBtn.disabled = isScanning;
-    runBtn.textContent = isScanning ? "Escaneando..." : "Ejecutar";
+
+    const updateRunButton = () => {
+      if (scanState.getState().isScanning) {
+        runBtn.classList.add("is-scanning");
+        runBtn.textContent = "Escaneando...";
+        runBtn.title = "Pasar el cursor aquí para cancelar";
+      } else {
+        runBtn.classList.remove("is-scanning");
+        runBtn.textContent = "Ejecutar";
+        runBtn.title = "";
+      }
+    };
+
+    updateRunButton();
+
+    runBtn.addEventListener("mouseenter", () => {
+      if (scanState.getState().isScanning) {
+        runBtn.textContent = "Cancelar";
+      }
+    });
+
+    runBtn.addEventListener("mouseleave", () => {
+      if (scanState.getState().isScanning) {
+        runBtn.textContent = "Escaneando...";
+      }
+    });
+
     runBtn.addEventListener("click", async () => {
+      if (scanState.getState().isScanning) {
+        await scanState.cancelScan();
+        return;
+      }
+
       await scanState.startScan(cat.id, this.targetInput);
       this.loadAndRenderResults();
     });
@@ -257,15 +287,48 @@ export class ScanView {
     // Botón ejecutar (con validación previa — ver validateCustomForm)
     const runBtn = document.createElement("button");
     runBtn.className = "hera-scanview-run-btn";
-    runBtn.disabled = isScanning;
-    runBtn.textContent = isScanning ? "Escaneando..." : "Ejecutar";
+
+    const updateRunButton = () => {
+      if (scanState.getState().isScanning) {
+        runBtn.classList.add("is-scanning");
+        runBtn.textContent = "Escaneando...";
+        runBtn.title = "Pasar el cursor aquí para cancelar";
+      } else {
+        runBtn.classList.remove("is-scanning");
+        runBtn.textContent = "Ejecutar";
+        runBtn.title = "";
+      } 
+    };
+
+    updateRunButton();
+
+    runBtn.addEventListener("mouseenter", () => {
+      if (scanState.getState().isScanning) {
+        runBtn.textContent = "Cancelar";
+      }
+    });
+
+    runBtn.addEventListener("mouseleave", () => {
+      if (scanState.getState().isScanning) {
+        runBtn.textContent = "Escaneando...";
+      } 
+    });
+
     runBtn.addEventListener("click", async () => {
+      if (scanState.getState().isScanning) {
+        await scanState.cancelScan();
+        return;
+      }
+
       const validationError = this.validateCustomForm();
+
       if (validationError) {
         this.showCustomFormError(validationError);
         return;
       }
+
       this.clearCustomFormError();
+
       await scanState.startCustomScan(this.customForm);
       this.loadAndRenderResults();
     });

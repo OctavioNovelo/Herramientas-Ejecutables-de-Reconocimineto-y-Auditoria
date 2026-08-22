@@ -66,13 +66,22 @@
   cursor: pointer;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  min-width: 125px;
+  box-sizing: border-box;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.hera-scanview-run-btn:disabled {
-  opacity: 0.55;
-  cursor: default;
+.hera-scanview-run-btn.is-scanning:hover {
+  background: #dc2626;
+  color: #ffffff;
 }
+
+.hera-scanview-run-btn.is-scanning {
+  cursor: pointer;
+}
+
 
 .hera-scanview-note {
   color: #4a6072;

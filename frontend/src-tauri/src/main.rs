@@ -6,6 +6,29 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::path::PathBuf;
+use std::collections::HashSet;
+//agregado
+use std::process::{Child, Command, Stdio};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Mutex,
+};
+use std::time::Duration;
+
+// Estado del proceso de escaneo actualmente ejecutándose.
+// Permite que trigger_nmap_scan / trigger_custom_scan
+// compartan el proceso con cancel_nmap_scan.
+#[derive(Default)]
+struct ScanProcessState {
+    child: Mutex<Option<Child>>,
+    cancelled: AtomicBool,
+
+    // Archivos que ya existían antes de comenzar el escaneo.
+    // Se utilizan para eliminar únicamente los archivos nuevos
+    // si el usuario cancela el escaneo.
+    files_before_scan: Mutex<Option<HashSet<PathBuf>>>,
+}
+//------------
 
 // Estructura para devolver los archivos XML de escaneo crudos al frontend (uso puntual/futuro,
 // p. ej. exportar el XML original; el dashboard ya NO depende de esto, ver get_dashboard_data).
@@ -189,13 +212,221 @@ except Exception as e:
         .map_err(|e| format!("Respuesta inesperada del backend Python: {} (raw: {})", e, stdout))
 }
 
+fn obtener_archivos_resultados() -> HashSet<PathBuf> {
+    let mut archivos = HashSet::new();
+
+    let Some(root) = find_workspace_root() else {
+        return archivos;
+    };
+
+    let os_folder = get_os_folder();
+
+    let nmap_dir = root
+        .join("utils")
+        .join("Resultados")
+        .join(os_folder)
+        .join("Nmap");
+
+    if let Ok(entries) = std::fs::read_dir(nmap_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+
+            if path.is_file() {
+                archivos.insert(path);
+            }
+        }
+    }
+
+    archivos
+}
+
+fn eliminar_archivos_nuevos(state: &ScanProcessState) {
+    let archivos_anteriores = match state.files_before_scan.lock() {
+        Ok(guard) => guard.clone(),
+        Err(_) => {
+            eprintln!("No se pudo acceder a la lista de archivos anteriores.");
+            return;
+        }
+    };
+
+    let Some(archivos_anteriores) = archivos_anteriores else {
+        return;
+    };
+
+    let archivos_actuales = obtener_archivos_resultados();
+
+    for archivo in archivos_actuales {
+        if !archivos_anteriores.contains(&archivo) {
+            match std::fs::remove_file(&archivo) {
+                Ok(_) => {
+                    println!(
+                        "Archivo temporal de escaneo eliminado: {:?}",
+                        archivo
+                    );
+                }
+                Err(e) => {
+                    eprintln!(
+                        "No se pudo eliminar el archivo {:?}: {}",
+                        archivo, e
+                    );
+                }
+            }
+        }
+    }
+
+    if let Ok(mut guard) = state.files_before_scan.lock() {
+        *guard = None;
+    }
+}
+
+//Agregado
+// Ejecuta un proceso de Python de forma cancelable.
+// El proceso se guarda en ScanProcessState para que otro comando Tauri
+// pueda terminarlo mientras el escaneo está en curso.
+fn ejecutar_proceso_escaneo(
+    mut command: Command,
+    state: &ScanProcessState,
+) -> Result<bool, String> {
+
+    {
+        let mut child_guard = state
+            .child
+            .lock()
+            .map_err(|_| "No se pudo acceder al estado del proceso de escaneo.".to_string())?;
+
+        if child_guard.is_some() {
+            return Err("Ya hay un escaneo en ejecución.".to_string());
+        }
+
+        // Guardamos los archivos existentes antes de comenzar.
+        let archivos_anteriores = obtener_archivos_resultados();
+
+        let mut archivos_guard = state
+            .files_before_scan
+            .lock()
+            .map_err(|_| "No se pudo guardar el estado de los archivos.".to_string())?;
+
+        *archivos_guard = Some(archivos_anteriores);
+
+        state.cancelled.store(false, Ordering::SeqCst);
+
+        command.stdout(Stdio::null());
+        command.stderr(Stdio::null());
+
+        let child = command
+            .spawn()
+            .map_err(|e| format!("Fallo al iniciar el subproceso de Python: {}", e))?;
+
+        *child_guard = Some(child);
+    }
+
+    loop {
+        let terminado = {
+            let mut child_guard = state
+                .child
+                .lock()
+                .map_err(|_| "No se pudo acceder al proceso de escaneo.".to_string())?;
+
+            if let Some(child) = child_guard.as_mut() {
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        child_guard.take();
+                        Some(status.success())
+                    }
+                    Ok(None) => None,
+                    Err(e) => {
+                        child_guard.take();
+                        return Err(format!(
+                            "Error al comprobar el proceso de escaneo: {}",
+                            e
+                        ));
+                    }
+                }
+            } else {
+                return Err("No hay un proceso de escaneo activo.".to_string());
+            }
+        };
+
+        if let Some(exito) = terminado {
+            let fue_cancelado = state.cancelled.load(Ordering::SeqCst);
+
+            if fue_cancelado {
+                return Ok(false);
+            }
+
+            return Ok(exito);
+        }
+
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+//Agregado
+// Cancela el proceso de escaneo actualmente ejecutándose.
+#[tauri::command]
+fn cancel_nmap_scan(
+    state: tauri::State<'_, ScanProcessState>,
+) -> Result<String, String> {
+
+    state.cancelled.store(true, Ordering::SeqCst);
+
+    {
+        let mut child_guard = state
+            .child
+            .lock()
+            .map_err(|_| "No se pudo acceder al proceso de escaneo.".to_string())?;
+
+        let child = match child_guard.as_mut() {
+            Some(child) => child,
+            None => {
+                state.cancelled.store(false, Ordering::SeqCst);
+                return Ok("No había ningún escaneo en ejecución.".to_string());
+            }
+        };
+
+        #[cfg(target_os = "windows")]
+        {
+            let pid = child.id().to_string();
+
+            let status = Command::new("taskkill")
+                .args(["/PID", &pid, "/T", "/F"])
+                .status()
+                .map_err(|e| {
+                    format!("No se pudo cancelar el escaneo: {}", e)
+                })?;
+
+            if !status.success() {
+                return Err(
+                    "No se pudo terminar el proceso de escaneo.".to_string()
+                );
+            }
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            child
+                .kill()
+                .map_err(|e| {
+                    format!("No se pudo cancelar el escaneo: {}", e)
+                })?;
+        }
+    }
+
+    // El proceso ya fue terminado.
+    // Eliminamos los archivos que aparecieron durante este escaneo.
+    eliminar_archivos_nuevos(&state);
+
+    Ok("Escaneo cancelado.".to_string())
+}
+
+
 // Comando de integración para iniciar un escaneo de red real. Despacha según 'scan_type' a la
 // función correspondiente de tools/nmap.py — cada categoría de la pestaña "Escaneo" llama a su
 // propia función, no siempre full_pack. La categoría 'custom' (personalizado) queda excluida
 // a propósito: esa función usa input() interactivo (CLI), lo cual se colgaría indefinidamente
 // si se invoca sin una terminal real, como ocurre al lanzarla desde un subprocess de Tauri.
 #[tauri::command]
-async fn trigger_nmap_scan(scan_type: String, target: Option<String>) -> Result<String, String> {
+async fn trigger_nmap_scan(scan_type: String,target: Option<String>,state: tauri::State<'_, ScanProcessState>,) -> Result<String, String> {
     println!(
         "Iniciando escaneo real de tipo: {} en el backend de HERA",
         scan_type
@@ -253,21 +484,22 @@ except Exception as e:
 
     let target_arg = target.unwrap_or_else(|| "__NONE__".to_string());
 
-    let output = std::process::Command::new("python3")
-        .arg("-c")
-        .arg(&python_code)
-        .arg(&target_arg)
-        .current_dir(&root)
-        .output()
-        .map_err(|e| format!("Fallo al iniciar el subproceso de Python: {}", e))?;
+    let command = {
+        let mut command = Command::new("python3");
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        return Err(format!(
-            "El escaneo falló.\nSTDOUT: {}\nSTDERR: {}",
-            stdout, stderr
-        ));
+        command
+            .arg("-c")
+            .arg(&python_code)
+            .arg(&target_arg)
+            .current_dir(&root);
+
+        command
+    };
+
+    let resultado = ejecutar_proceso_escaneo(command, &state)?;
+
+    if !resultado {
+        return Err("ESCANEO_CANCELADO".to_string());
     }
 
     Ok(format!("El escaneo '{}' se completó correctamente y los datos han sido guardados.", scan_type))
@@ -339,6 +571,7 @@ async fn trigger_custom_scan(
     port_mode: String,
     port_value: String,
     target: Option<String>,
+    state: tauri::State<'_, ScanProcessState>,
 ) -> Result<String, String> {
     let root = find_workspace_root()
         .ok_or_else(|| "No se pudo localizar el directorio de resultados de HERA.".to_string())?;
@@ -384,27 +617,30 @@ except Exception as e:
     let tcp_type_arg = tcp_type.unwrap_or_else(|| "__NONE__".to_string());
     let target_arg = target.unwrap_or_else(|| "__NONE__".to_string());
 
-    let output = std::process::Command::new("python3")
-        .arg("-c")
-        .arg(python_code)
-        .arg(&protocol)
-        .arg(&tcp_type_arg)
-        .arg(timing.to_string())
-        .arg(&port_mode)
-        .arg(&port_value)
-        .arg(&target_arg)
-        .current_dir(&root)
-        .output()
-        .map_err(|e| format!("Fallo al iniciar el subproceso de Python: {}", e))?;
+        let command = {
+            let mut command = Command::new("python3");
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        return Err(format!(
-            "El escaneo personalizado falló.\nSTDOUT: {}\nSTDERR: {}",
-            stdout, stderr
-        ));
-    }
+            command
+                .arg("-c")
+                .arg(python_code)
+                .arg(&protocol)
+                .arg(&tcp_type_arg)
+                .arg(timing.to_string())
+                .arg(&port_mode)
+                .arg(&port_value)
+                .arg(&target_arg)
+                .current_dir(&root);
+
+            command
+        };
+
+        let resultado = ejecutar_proceso_escaneo(command, &state)?;
+
+        if !resultado {
+            return Err("ESCANEO_CANCELADO".to_string());
+        }
+
+
 
     Ok("El escaneo personalizado se completó correctamente y los datos han sido guardados.".to_string())
 }
@@ -418,14 +654,16 @@ fn main() {
     }
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![
-            get_host_info,
-            read_scan_results,
-            get_dashboard_data,
-            get_category_results,
-            trigger_nmap_scan,
-            trigger_custom_scan
-        ])
+    .manage(ScanProcessState::default())
+    .invoke_handler(tauri::generate_handler![
+        get_host_info,
+        read_scan_results,
+        get_dashboard_data,
+        get_category_results,
+        trigger_nmap_scan,
+        trigger_custom_scan,
+        cancel_nmap_scan
+    ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
