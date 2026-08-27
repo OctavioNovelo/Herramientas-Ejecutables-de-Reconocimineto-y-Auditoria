@@ -7,7 +7,8 @@ export default defineConfig({
   clearScreen: false,
   // Tauri se comunica con un puerto fijo durante el desarrollo
   server: {
-    port: 1420,
+    host: "127.0.0.1",
+    port: 3001,
     strictPort: true,
     watch: {
       // Ignora los cambios en la carpeta de Rust src-tauri para evitar recargas del frontend innecesarias
