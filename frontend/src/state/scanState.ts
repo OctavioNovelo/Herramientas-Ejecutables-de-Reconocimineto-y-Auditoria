@@ -83,7 +83,7 @@ class ScanStateManager {
   }
 
   // Inicia un escaneo de red real.
-  async startScan(scanType: string = "full_pack", target?: string) {
+  async startScan(scanType: string = "full_pack", target?: string, evasion: boolean = false) {
     if (this.state.isScanning) return;
 
     this.state.isScanning = true;
@@ -91,7 +91,7 @@ class ScanStateManager {
     this.notify();
 
     try {
-      await heraApi.startScan(scanType, target);
+      await heraApi.startScan(scanType, target, evasion);
 
       // Cuando Rust/Python termina el escaneo, recargamos los datos.
       await this.refreshData();

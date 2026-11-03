@@ -65,6 +65,8 @@ def ejecutar_herramienta(tool, os_folder):
     else:
         ip_result = subprocess.run("ip route | grep kernel | grep -vE 'docker|br-' | awk '{print $1}'", shell=True, capture_output=True, text=True)
         
-        redes = [red for red in ip_result.stdout.strip().split("\n") if red]
+        # dict.fromkeys quita duplicados conservando el orden: la misma subred aparece una vez
+        # por interfaz (ej. Wi-Fi y Ethernet en la misma red) y Nmap la escanearía dos veces.
+        redes = list(dict.fromkeys(red for red in ip_result.stdout.strip().split("\n") if red))
 
     return {"bin_path": bin_path, "os_folder": os_folder, "redes": redes, "os_type": os_name}

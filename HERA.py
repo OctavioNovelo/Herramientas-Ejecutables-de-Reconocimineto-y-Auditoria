@@ -1,14 +1,10 @@
-# This is the beginning of the Auditor project
-import frontend.CLI
-import subprocess
+# HERA.py — punto de entrada del CLI (python3 HERA.py).
+# Ojo: la app nativa (main.rs::find_workspace_root) usa este archivo como marcador de la raíz
+# del proyecto, así que no debe moverse ni renombrarse.
+from frontend import CLI
 
-
-def main ():
-    frontend.CLI.limpiar_pantalla()
-    frontend.CLI.cli()
-
-while (1):
-    main()
+if __name__ == "__main__":
+    CLI.cli()
 
 # Cositas que faltan por hacer:
 # TODO: Add option to include/exclude vulnerabilities in the customized scan

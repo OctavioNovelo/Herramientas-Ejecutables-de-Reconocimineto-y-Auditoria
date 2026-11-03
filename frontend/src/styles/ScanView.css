@@ -1,6 +1,6 @@
 /* Archivo: frontend/src/styles/ScanView.css */
 /* Razón: Estilos de la pestaña "Escaneo" — chips de categoría, formulario de personalizado,
-   y las cards de resultados por categoría (genérica, vulnerabilidades, admin, consumo). */
+   y las cards de resultados por categoría (genérica, vulnerabilidades, admin). */
 
 .hera-scanview {
   padding: 0 20px 40px;
@@ -104,6 +104,29 @@
 .hera-target-field {
   min-width: 220px;
   flex: 1 1 220px;
+}
+
+/* Casilla opcional de evasión de firewall/IDS (ver ScanView.ts::buildEvasionToggle). */
+.hera-evasion-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #6a8298;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  padding-bottom: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.hera-evasion-toggle input {
+  color-scheme: dark;
+  accent-color: var(--color-accent, #38bdf8);
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
 }
 
 .hera-custom-form-error {

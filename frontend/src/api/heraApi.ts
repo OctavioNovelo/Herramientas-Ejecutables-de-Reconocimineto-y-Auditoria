@@ -48,6 +48,7 @@ export interface ServiceDetail {
   extrainfo?: string;
   devicetype?: string;
   fingerprint?: string;
+  title?: string; // título de la página web (script http-title), ej. "RouterOS router configuration page"
 }
 
 // Un "guess" individual cuando Nmap no logra un match exacto de SO (accuracy < 100%).
@@ -157,6 +158,7 @@ export interface CustomScanParams {
   portMode: "specific" | "top" | "ratio" | "all";
   portValue: string; // depende de portMode: "80,443" | "1000" | "0.5" | ignorado si portMode==="all"
   target?: string; // IP/red/hostname específico. Si se omite, usa la red local detectada.
+  evasion?: boolean; // técnicas de evasión de firewall/IDS (opcional, apagadas por defecto)
 }
 
 // Punto de conexión para iniciar el escaneo "Personalizado" con parámetros explícitos
@@ -172,6 +174,7 @@ async function startCustomScan(params: CustomScanParams): Promise<string> {
     portMode: params.portMode,
     portValue: params.portValue,
     target: params.target?.trim() || null,
+    evasion: params.evasion ?? false,
   });
 }
 
@@ -186,8 +189,8 @@ export const heraApi = {
     return await invoke<HostInfo>("get_host_info");
   },
 
-  // Obtiene dispositivos + estadísticas ya procesados por utils/parser.py, combinando
-  // TODOS los escaneos disponibles para el sistema operativo actual (dashboard combinado).
+  // Obtiene dispositivos + estadísticas ya procesados por utils/parser.py, combinando el
+  // escaneo más reciente de cada categoría (dashboard combinado, ver parser.ultimos_escaneos).
   // Devuelve datos vacíos explícitos si no hay escaneos previos (sin fallback simulado).
   async getDashboardData(): Promise<DashboardData> {
     if (!isTauri()) {
@@ -212,13 +215,15 @@ export const heraApi = {
   // 'target' es opcional: si se especifica (IP/red/hostname), Nmap escanea eso en vez de
   // la subred local detectada automáticamente. No traga errores: si el escaneo falla
   // (permisos, binario ausente, etc.), el error se relanza para que scanState lo muestre.
-  async startScan(scanType: string, target?: string): Promise<string> {
+  // 'evasion' solo tiene efecto en las categorías con supportsEvasion (ocultos, full).
+  async startScan(scanType: string, target?: string, evasion: boolean = false): Promise<string> {
     if (!isTauri()) {
       throw new Error("Los escaneos solo están disponibles dentro de la aplicación nativa de HERA.");
     }
     return await invoke<string>("trigger_nmap_scan", {
       scanType,
       target: target?.trim() || null,
+      evasion,
     });
   },
 

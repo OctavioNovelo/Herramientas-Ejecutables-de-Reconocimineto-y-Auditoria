@@ -1,18 +1,38 @@
-*.txt
-*.xml
+# Resultados de escaneo: datos de redes reales (IPs, MACs, servicios, vulnerabilidades).
+# NUNCA deben subirse. Aquí viven todos los .xml/.txt que genera tools/nmap.py.
+utils/Resultados/
+
+# Python
+__pycache__/
+# Solo bytecode: los .pyd SÍ se versionan (módulos nativos del Nmap/Zenmap de Windows en tools_bin/).
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Node / Vite
+# package-lock.json SÍ se versiona: fija las versiones exactas de las dependencias.
+frontend/node_modules/
+frontend/dist/
+npm-debug.log*
 
 # Rust / Tauri
 frontend/src-tauri/target/
 frontend/src-tauri/gen/schemas/
 
-# Node
-frontend/node_modules/
-frontend/dist/
-frontend/package-lock.json  # opcional, algunos prefieren versionarlo — tu decisión
+# Variables de entorno y secretos
+.env
+.env.*
 
-# Python
-__pycache__/
-*.pyc
+# Editores y sistema operativo
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
 
-# Resultados de escaneo (probablemente no quieres versionar datos de red reales)
-utils/Resultados/
+# Logs
+*.log

@@ -1,7 +1,6 @@
-// Traduce números de puerto a etiquetas legibles para las vistas de categoría
-// "Auditoría Admin" y "Monitor de Consumo". Los puertos deben coincidir EXACTAMENTE con
-// los que usan admin_audit() y monitor_consumo() en tools/nmap.py — si esas listas cambian,
-// actualizar aquí también.
+// Traduce números de puerto a etiquetas legibles para la vista de categoría "Auditoría Admin".
+// Los puertos deben coincidir EXACTAMENTE con los que usa admin_audit() en tools/nmap.py (y con
+// ADMIN_PORT_LABELS en frontend/option.py) — si esa lista cambia, actualizar aquí también.
 
 // --- Auditoría Admin ---
 export const ADMIN_PORT_LABELS: Record<number, string> = {
@@ -9,6 +8,7 @@ export const ADMIN_PORT_LABELS: Record<number, string> = {
   22: "SSH",
   23: "Telnet",
   80: "HTTP",
+  161: "SNMP",
   443: "HTTPS",
   623: "IPMI / ASF",
   902: "VMware vSphere",
@@ -17,14 +17,20 @@ export const ADMIN_PORT_LABELS: Record<number, string> = {
   2083: "cPanel (HTTPS)",
   2086: "WHM (HTTP)",
   2087: "WHM (HTTPS)",
+  2222: "SSH alterno",
   3306: "MySQL",
   3389: "RDP (Escritorio remoto)",
-  3391: "RDP (UDP)",
   5900: "VNC",
   5985: "WinRM / PowerShell remoto",
+  5986: "WinRM sobre HTTPS",
+  7547: "TR-069 (gestión remota del ISP)",
+  8000: "HTTP alterno",
   8080: "Proxy / HTTP alterno",
+  8291: "MikroTik Winbox",
   8443: "HTTPS alterno",
   8880: "HTTP alterno",
+  8888: "HTTP alterno",
+  10000: "Webmin",
 };
 
 // Puertos "esperables" para un panel de administración normal (web estándar).
@@ -38,23 +44,4 @@ export function adminPortLabel(port: number): string {
 
 export function isAdminPortStandard(port: number): boolean {
   return ADMIN_STANDARD_PORTS.has(port);
-}
-
-// --- Monitor de Consumo ---
-const CONSUMO_PORT_LABELS: Record<number, string> = {
-  1935: "Streaming (RTMP)",
-  3478: "VoIP (STUN)",
-  3479: "VoIP",
-  3480: "VoIP",
-  5060: "VoIP (SIP)",
-  5061: "VoIP (SIP sobre TLS)",
-  80: "Web",
-  443: "Web (TLS)",
-};
-
-export function consumoPortLabel(port: number): string {
-  if (port >= 27015 && port <= 27030) {
-    return "🎮 Gaming (Steam / Source)";
-  }
-  return CONSUMO_PORT_LABELS[port] ?? `Puerto ${port}`;
 }

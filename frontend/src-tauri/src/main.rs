@@ -423,10 +423,15 @@ fn cancel_nmap_scan(
 // Comando de integración para iniciar un escaneo de red real. Despacha según 'scan_type' a la
 // función correspondiente de tools/nmap.py — cada categoría de la pestaña "Escaneo" llama a su
 // propia función, no siempre full_pack. La categoría 'custom' (personalizado) queda excluida
-// a propósito: esa función usa input() interactivo (CLI), lo cual se colgaría indefinidamente
-// si se invoca sin una terminal real, como ocurre al lanzarla desde un subprocess de Tauri.
+// a propósito: necesita parámetros extra (protocolo, timing, puertos), así que tiene su propio
+// comando, trigger_custom_scan.
 #[tauri::command]
-async fn trigger_nmap_scan(scan_type: String,target: Option<String>,state: tauri::State<'_, ScanProcessState>,) -> Result<String, String> {
+async fn trigger_nmap_scan(
+    scan_type: String,
+    target: Option<String>,
+    evasion: Option<bool>,
+    state: tauri::State<'_, ScanProcessState>,
+) -> Result<String, String> {
     println!(
         "Iniciando escaneo real de tipo: {} en el backend de HERA",
         scan_type
@@ -435,11 +440,12 @@ async fn trigger_nmap_scan(scan_type: String,target: Option<String>,state: tauri
     let funcion_python = match scan_type.as_str() {
         "rapido" => "nmap.escaneo_rapido(context, target=target)",
         "vuln" => "nmap.vulnerabilidades(context, target=target)",
-        "ocultos" => "nmap.dispositivos_ocultos(context, target=target)",
+        // Solo 'ocultos' y 'full' aceptan evasión (opcional, apagada por defecto — ver
+        // tools/nmap.py::_args_evasion). Las demás categorías ignoran el parámetro.
+        "ocultos" => "nmap.dispositivos_ocultos(context, target=target, evasion=evasion)",
         "admin" => "nmap.admin_audit(context, target=target)",
         "id" => "nmap.indentificar_dispositivos(context, target=target)",
-        "consumo" => "nmap.monitor_consumo(context, target=target)",
-        "full" | "full_pack" => "nmap.full_pack(context, target=target)",
+        "full" | "full_pack" => "nmap.full_pack(context, target=target, evasion=evasion)",
         "custom" => {
             return Err(
                 "El escaneo personalizado usa un comando distinto (trigger_custom_scan), no trigger_nmap_scan.".to_string()
@@ -465,6 +471,7 @@ from utils.system_info import obtener_sistema_operativo, obtener_carpeta_os
 
 try:
     target = sys.argv[1] if sys.argv[1] != '__NONE__' else None
+    evasion = sys.argv[2] == '1'
     os_name = obtener_sistema_operativo()
     os_folder = obtener_carpeta_os(os_name)
     print("1. Resolviendo configuración de red local...")
@@ -483,6 +490,7 @@ except Exception as e:
     );
 
     let target_arg = target.unwrap_or_else(|| "__NONE__".to_string());
+    let evasion_arg = if evasion.unwrap_or(false) { "1" } else { "0" };
 
     let command = {
         let mut command = Command::new("python3");
@@ -491,6 +499,7 @@ except Exception as e:
             .arg("-c")
             .arg(&python_code)
             .arg(&target_arg)
+            .arg(evasion_arg)
             .current_dir(&root);
 
         command
@@ -557,9 +566,9 @@ except Exception as e:
         .map_err(|e| format!("Respuesta inesperada del backend Python: {} (raw: {})", e, stdout))
 }
 
-// Comando para lanzar el escaneo "Personalizado" desde la interfaz, con los parámetros que en
-// el CLI se piden por teclado (ver tools/nmap.py::personalizado). Llama a personalizado_gui(),
-// la versión no interactiva escrita específicamente para no depender de stdin.
+// Comando para lanzar el escaneo "Personalizado" desde la interfaz, con los mismos parámetros
+// que el CLI pide en su formulario (ver frontend/CLI.py::formulario_personalizado). Ambos
+// llaman a tools/nmap.py::personalizado(), que no es interactiva y no depende de stdin.
 // Los parámetros se pasan como argumentos de línea de comandos (sys.argv), NO interpolados
 // directamente en el código Python, para evitar cualquier riesgo de inyección si algún valor
 // contuviera comillas u otros caracteres especiales.
@@ -571,6 +580,7 @@ async fn trigger_custom_scan(
     port_mode: String,
     port_value: String,
     target: Option<String>,
+    evasion: Option<bool>,
     state: tauri::State<'_, ScanProcessState>,
 ) -> Result<String, String> {
     let root = find_workspace_root()
@@ -590,6 +600,7 @@ try:
     port_mode = sys.argv[4]
     port_value = sys.argv[5]
     target = sys.argv[6] if sys.argv[6] != '__NONE__' else None
+    evasion = sys.argv[7] == '1'
 
     os_name = obtener_sistema_operativo()
     os_folder = obtener_carpeta_os(os_name)
@@ -599,7 +610,7 @@ try:
         print(f"2. Iniciando escaneo personalizado en objetivo: {target}")
     else:
         print(f"2. Iniciando escaneo personalizado en subredes: {context.get('redes')}")
-    nmap.personalizado_gui(
+    nmap.personalizado(
         context,
         protocol=protocol,
         tcp_type=tcp_type,
@@ -607,6 +618,7 @@ try:
         port_mode=port_mode,
         port_value=port_value,
         target=target,
+        evasion=evasion,
     )
     print("3. Escaneo personalizado finalizado con éxito.")
 except Exception as e:
@@ -616,6 +628,7 @@ except Exception as e:
 
     let tcp_type_arg = tcp_type.unwrap_or_else(|| "__NONE__".to_string());
     let target_arg = target.unwrap_or_else(|| "__NONE__".to_string());
+    let evasion_arg = if evasion.unwrap_or(false) { "1" } else { "0" };
 
         let command = {
             let mut command = Command::new("python3");
@@ -629,6 +642,7 @@ except Exception as e:
                 .arg(&port_mode)
                 .arg(&port_value)
                 .arg(&target_arg)
+                .arg(evasion_arg)
                 .current_dir(&root);
 
             command

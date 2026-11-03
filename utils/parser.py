@@ -1,7 +1,14 @@
 import re
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from pathlib import Path
 from utils import vuln_classification
+
+# Cada escaneo se guarda como <categoria>_<fecha>_<hora>, ej. escaneo_rapido_2026-11-01_18-30-05.xml
+# (más sus _normal.txt y _grepable.txt). tools/nmap.py usa este mismo formato al escribirlos, así
+# que si cambia aquí cambia para todos. Sin ':' en la hora porque Windows no lo permite en nombres.
+FORMATO_FECHA_ARCHIVO = "%Y-%m-%d_%H-%M-%S"
+_RE_FECHA_ARCHIVO = r"\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}"
 
 
 def buscar_en_gnmap(ruta_gnmap, termino_busqueda):
@@ -219,6 +226,18 @@ def _extraer_urls_identificacion(host):
     return urls
 
 
+def _extraer_titulo_web(port):
+    """
+    Título de la página web servida en el puerto (script http-title), útil para saber QUÉ hay
+    detrás (ej. "RouterOS router configuration page", "Hikvision"). None si el script no corrió
+    o la página no tiene título (ej. solo redirige).
+    """
+    titulo_el = port.find("script[@id='http-title']/elem[@key='title']")
+    if titulo_el is not None and titulo_el.text and titulo_el.text.strip():
+        return titulo_el.text.strip()
+    return None
+
+
 def generar_tabla_xml(ruta_xml):
     """
     Parsea un XML de Nmap y devuelve una lista de filas (una por puerto reportado).
@@ -310,6 +329,7 @@ def generar_tabla_xml(ruta_xml):
                 'InfoExtra': servicio_el.get('extrainfo') if servicio_el is not None else None,
                 'DeviceTypeServicio': servicio_el.get('devicetype') if servicio_el is not None else None,
                 'Fingerprint': servicio_el.get('servicefp') if servicio_el is not None else None,
+                'TituloWeb': _extraer_titulo_web(port),
                 'HostStatus': host_status,
                 'MAC': mac,
                 'Vendor': vendor,
@@ -334,46 +354,82 @@ def generar_tabla_xml(ruta_xml):
 
 def buscar_escaneos(directorio, base_name, extension=".xml"):
     """
-    Finds all scan files for a category and sorts them by modification time (newest first).
-    Handles base filenames and numbered versions (e.g., scan.xml, scan_1.xml, etc.).
+    Devuelve los archivos de una categoría (<base_name>_<fecha>_<hora><extension>), del más
+    reciente al más antiguo. La coincidencia es exacta, así que "dispositivos_ocultos" no
+    confunde sus archivos con los de otra categoría cuyo nombre empiece igual.
     """
     path = Path(directorio)
     if not path.exists():
         return []
 
-    archivos = []
-    for f in path.glob(f"{base_name}*{extension}"):
-        name = f.name
-        if name == f"{base_name}{extension}":
-            archivos.append(f)
-        elif name.startswith(f"{base_name}_") and name[len(base_name)+1:-len(extension)].isdigit():
-            archivos.append(f)
-
-    archivos.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+    patron = re.compile(rf"^{re.escape(base_name)}_{_RE_FECHA_ARCHIVO}{re.escape(extension)}$")
+    archivos = [f for f in path.iterdir() if patron.match(f.name)]
+    # La fecha del nombre está en formato año-mes-día_hora, así que ordenar por nombre
+    # es ordenar por fecha (no depende de la fecha de modificación del archivo).
+    archivos.sort(key=lambda f: f.name, reverse=True)
     return [str(a) for a in archivos]
 
 
-def obtener_datos_completos(os_folder):
-    """Lee todos los archivos XML en el directorio de resultados y los combina."""
-    base_path = Path(__file__).parent.parent
-    resultados_dir = base_path / "utils" / "Resultados" / os_folder / "Nmap"
+def fecha_de_escaneo(ruta):
+    """Fecha y hora en que se lanzó un escaneo, leída de su nombre. None si no la trae."""
+    m = re.search(_RE_FECHA_ARCHIVO, Path(ruta).name)
+    return datetime.strptime(m.group(0), FORMATO_FECHA_ARCHIVO) if m else None
 
-    todos_los_datos = []
+
+def escaneo_finalizado(ruta_xml):
+    """
+    True si el XML corresponde a un escaneo que Nmap terminó (trae <runstats><finished>).
+    Un escaneo interrumpido (Ctrl+C, proceso terminado) deja el XML truncado o sin ese
+    bloque, así que esto permite distinguir resultados completos de restos parciales.
+    """
+    try:
+        return ET.parse(ruta_xml).getroot().find('runstats/finished') is not None
+    except Exception:
+        return False
+
+
+def ultimos_escaneos(os_folder):
+    """
+    El XML más reciente y TERMINADO de cada categoría (agrupando los archivos por su nombre sin
+    la fecha). Es lo que usa el dashboard combinado: así refleja el estado ACTUAL de la red y no
+    todo el historial — un dispositivo que ya no está o una vulnerabilidad ya corregida dejan de
+    contar en cuanto se vuelve a escanear esa categoría. Si el último escaneo de una categoría
+    quedó incompleto (cancelado, interrumpido), se usa el anterior que sí terminó.
+    """
+    resultados_dir = Path(__file__).parent.parent / "utils" / "Resultados" / os_folder / "Nmap"
     if not resultados_dir.exists():
-        return todos_los_datos
+        return []
 
+    patron = re.compile(rf"^(.+)_{_RE_FECHA_ARCHIVO}\.xml$")
+    por_categoria = {}
     for archivo in resultados_dir.glob("*.xml"):
-        if archivo.suffix == ".xml":
-            datos = generar_tabla_xml(str(archivo))
-            if datos and "Error" not in datos[0]:
-                todos_los_datos.extend(datos)
+        m = patron.match(archivo.name)
+        if m:
+            por_categoria.setdefault(m.group(1), []).append(archivo)
 
+    ultimos = []
+    for archivos in por_categoria.values():
+        # El nombre trae la fecha en formato ordenable: el mayor es el más reciente.
+        for archivo in sorted(archivos, key=lambda f: f.name, reverse=True):
+            if escaneo_finalizado(archivo):
+                ultimos.append(archivo)
+                break
+    return ultimos
+
+
+def obtener_datos_completos(os_folder):
+    """Combina las filas del escaneo más reciente de cada categoría (ver ultimos_escaneos)."""
+    todos_los_datos = []
+    for archivo in ultimos_escaneos(os_folder):
+        datos = generar_tabla_xml(str(archivo))
+        if datos and "Error" not in datos[0]:
+            todos_los_datos.extend(datos)
     return todos_los_datos
 
 
 def obtener_estadisticas_dashboard(os_folder):
     """
-    Estadísticas combinadas de TODOS los escaneos disponibles para el SO dado.
+    Estadísticas combinadas del escaneo más reciente de cada categoría (ver ultimos_escaneos).
     Solo cuenta vulnerabilidades CONFIRMADAS (las 'posibles' quedan fuera a propósito,
     para no inflar el nivel de riesgo con hallazgos que Nmap no pudo verificar).
 
@@ -405,25 +461,22 @@ def obtener_estadisticas_dashboard(os_folder):
     elif vulns_por_sev["high"] > 0: riesgo = "ALTO"
     elif vulns_por_sev["medium"] > 0: riesgo = "MEDIO"
 
-    base_path = Path(__file__).parent.parent
-    resultados_dir = base_path / "utils" / "Resultados" / os_folder / "Nmap"
+    # Fecha y tiempo salen de los MISMOS archivos que alimentan los dispositivos, para que todo
+    # el dashboard describa el mismo conjunto de escaneos.
+    archivos = ultimos_escaneos(os_folder)
     last_scan = "N/A"
-    segundos_totales = 0.0
-    if resultados_dir.exists():
-        archivos = list(resultados_dir.glob("*.xml"))
-        if archivos:
-            latest_file = max(archivos, key=lambda x: x.stat().st_mtime)
-            from datetime import datetime
-            last_scan = datetime.fromtimestamp(latest_file.stat().st_mtime).strftime('%d/%m/%y')
+    if archivos:
+        last_scan = max(fecha_de_escaneo(a) for a in archivos).strftime('%d/%m/%y')
 
-        # Tiempo total escaneando: suma del 'elapsed' de cada archivo XML combinado (cada uno
-        # es una corrida de Nmap independiente, así que se suman, no se toma el máximo).
-        for archivo in archivos:
-            try:
-                info = _extraer_info_escaneo(ET.parse(archivo).getroot())
-                segundos_totales += info['segundos']
-            except Exception:
-                continue
+    # Tiempo total escaneando: suma del 'elapsed' de cada archivo XML combinado (cada uno
+    # es una corrida de Nmap independiente, así que se suman, no se toma el máximo).
+    segundos_totales = 0.0
+    for archivo in archivos:
+        try:
+            info = _extraer_info_escaneo(ET.parse(archivo).getroot())
+            segundos_totales += info['segundos']
+        except Exception:
+            continue
 
     minutos, segs_resto = divmod(round(segundos_totales), 60)
     scan_time_total_str = f"{minutos}m {segs_resto}s" if minutos else f"{segs_resto}s"
@@ -587,6 +640,7 @@ def _agrupar_por_dispositivo(filas, incluir_posibles=False):
                     'extrainfo': fila.get('InfoExtra'),
                     'devicetype': fila.get('DeviceTypeServicio'),
                     'fingerprint': fila.get('Fingerprint'),
+                    'title': fila.get('TituloWeb'),
                 })
 
         for v in fila.get('Vulnerabilidades', []):
@@ -613,7 +667,7 @@ def _agrupar_por_dispositivo(filas, incluir_posibles=False):
 
 def obtener_dispositivos_agrupados(os_folder):
     """
-    Agrupa TODOS los escaneos disponibles (todas las categorías) en dispositivos únicos por IP.
+    Agrupa el escaneo más reciente de cada categoría en dispositivos únicos por IP.
     Las vulnerabilidades quedan SIN agrupar por producto (una entrada por CVE individual):
     esta es la fuente que usa obtener_estadisticas_dashboard() para que el conteo total y el
     desglose por severidad reflejen la cantidad real de hallazgos, no la cantidad de filas

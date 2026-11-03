@@ -7,9 +7,9 @@
 
 export type ViewName = "dashboard" | "mapear" | "detectar" | "vulnerar";
 
-// Las 8 categorías de escaneo que ya existen en el CLI (frontend/CLI.py::nmap_cli).
+// Las 8 categorías de escaneo, espejo de frontend/option.py::CATEGORIAS (catálogo del CLI).
 // El 'file_base' debe coincidir EXACTAMENTE con el nombre base que usa tools/nmap.py
-// al generar los archivos (ver file_number() en cada función de nmap.py).
+// al generar los archivos (<file_base>_<fecha>_<hora>, ver ruta_con_fecha() en nmap.py).
 //
 // 'group' determina en qué pestaña del menú horizontal aparece cada categoría:
 //   - "mapear": reconocimiento de red (descubrir dispositivos, puertos, servicios)
@@ -23,21 +23,21 @@ export interface ScanCategory {
   label: string;
   file_base: string;
   group: "mapear" | "detectar";
+  // true si la categoría ofrece la opción de evasión de firewall/IDS (apagada por defecto,
+  // ver tools/nmap.py::_args_evasion). Mismo flag que 'admite_evasion' en frontend/option.py.
+  supportsEvasion?: boolean;
 }
 
 export const SCAN_CATEGORIES: ScanCategory[] = [
   { id: "rapido", label: "Escaneo rápido", file_base: "escaneo_rapido", group: "mapear" },
   { id: "vuln", label: "Vulnerabilidades", file_base: "vulnerabilidades", group: "detectar" },
-  // NOTA: file_base es "escaneo_profundo", no "dispositivos_ocultos". La función
-  // tools/nmap.py::dispositivos_ocultos() corre en 2 etapas (sondeo liviano + escaneo
-  // profundo); el resultado que se muestra en esta pestaña es el de la SEGUNDA etapa
-  // (escaneo_profundo), que es la que realmente escribe el .xml con los datos finales.
-  { id: "ocultos", label: "Dispositivos ocultos", file_base: "escaneo_profundo", group: "mapear" },
-  { id: "admin", label: "Auditoría admin", file_base: "admin_audit", group: "mapear" },
-  { id: "id", label: "Identificación", file_base: "ind_disp", group: "mapear" },
-  { id: "consumo", label: "Monitor consumo", file_base: "consumo", group: "mapear" },
-  { id: "full", label: "Full pack", file_base: "full_pack", group: "mapear" },
-  { id: "custom", label: "Personalizado", file_base: "personalizado", group: "mapear" },
+  // NOTA: tools/nmap.py::dispositivos_ocultos() corre en 2 etapas; el sondeo intermedio se
+  // guarda como "sondeo_ocultos" y el resultado final (el que se muestra) como "dispositivos_ocultos".
+  { id: "ocultos", label: "Dispositivos ocultos", file_base: "dispositivos_ocultos", group: "mapear", supportsEvasion: true },
+  { id: "admin", label: "Auditoría admin", file_base: "auditoria_admin", group: "mapear" },
+  { id: "id", label: "Identificación", file_base: "identificacion_dispositivos", group: "mapear" },
+  { id: "full", label: "Full pack", file_base: "full_pack", group: "mapear", supportsEvasion: true },
+  { id: "custom", label: "Personalizado", file_base: "personalizado", group: "mapear", supportsEvasion: true },
 ];
 
 type Subscriber = () => void;

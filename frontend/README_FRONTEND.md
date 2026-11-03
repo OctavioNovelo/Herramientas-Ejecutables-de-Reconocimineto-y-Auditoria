@@ -53,7 +53,7 @@ frontend/
 │   │   │                        si hay un escaneo en curso). Singleton reactivo.
 │   │   └── viewState.ts       → estado de navegación (qué pestaña está activa, qué
 │   │                            categoría de escaneo está seleccionada) + la lista de
-│   │                            las 8 categorías (SCAN_CATEGORIES).
+│   │                            las 7 categorías (SCAN_CATEGORIES).
 │   ├── components/
 │   │   ├── NavBar.ts           → menú horizontal (Escaneo | Opción 2 | Logo | Opción 3/4)
 │   │   ├── Card.ts              → tarjeta genérica reutilizable (título + contenido)
@@ -64,7 +64,7 @@ frontend/
 │   │   └── ScanView.ts          → pestaña "Escaneo": chips de categoría, formulario de
 │   │                              Personalizado, y las cards de resultados por categoría
 │   ├── utils/
-│   │   └── portLabels.ts        → diccionarios puerto→etiqueta para Admin y Consumo
+│   │   └── portLabels.ts        → diccionario puerto→etiqueta para Auditoría Admin
 │   └── styles/
 │       └── *.css                → un archivo CSS por componente, mismo nombre
 └── src-tauri/
@@ -115,11 +115,11 @@ guía** y quedan anotadas aquí para que alguien las revise antes de tocarlas o 
 | La gráfica "Actividad de Red" | `src/components/NetworkChart.ts` |
 | El botón principal del dashboard (Escanear/Informe) | `src/components/ScanButton.ts` para la apariencia; `src/state/scanState.ts::startScan()` para el comportamiento (siempre lanza `full_pack`, ver nota en el README raíz). **Pendiente de aclarar:** no está definida la diferencia funcional exacta entre `components/ReportButton` y `components/ScanButton` — hay que revisar ambos antes de modificarlos. |
 | La tabla de dispositivos del dashboard | `src/components/ResultsTable.ts` |
-| Las 8 categorías de escaneo (agregar una, cambiar nombres, orden) | `src/state/viewState.ts` → array `SCAN_CATEGORIES`. El `file_base` de cada una debe coincidir exactamente con el nombre de archivo que genera la función correspondiente en `tools/nmap.py` |
-| El diseño de las cards por categoría (Vulnerabilidades, Admin, Consumo, genérica) | `src/components/ScanView.ts` — cada categoría tiene su propio método de renderizado (`renderVulnSplit`, `renderAdminPorts`, `renderConsumoPorts`, `renderGenericBadges`) |
+| Las 7 categorías de escaneo (agregar una, cambiar nombres, orden) | `src/state/viewState.ts` → array `SCAN_CATEGORIES`. El `file_base` de cada una debe coincidir exactamente con el nombre de archivo que genera la función correspondiente en `tools/nmap.py` |
+| El diseño de las cards por categoría (Vulnerabilidades, Admin, genérica) | `src/components/ScanView.ts` — cada categoría tiene su propio método de renderizado (`renderVulnSplit`, `renderAdminPorts`, `renderGenericBadges`) |
 | El formulario de "Personalizado" (protocolo, timing, puertos) | `src/components/ScanView.ts` → `buildCustomForm()`, validación en `validateCustomForm()` |
-| El campo de "IP / red objetivo" (las 8 categorías pueden apuntar a un objetivo distinto de la red local detectada) | Frontend: `src/components/ScanView.ts` (`renderActionBar()` para las 7 categorías genéricas, `buildCustomForm()` para Personalizado) → `src/state/scanState.ts::startScan()`/`startCustomScan()` → `src/api/heraApi.ts`. Backend: `tools/nmap.py::_escribir_hosts_file()`, parámetro `target` en cada función de escaneo |
-| Las etiquetas de puertos en Admin/Consumo (ej. "🎮 Gaming", "cPanel") | `src/utils/portLabels.ts` — deben coincidir con las listas de puertos reales en `tools/nmap.py::admin_audit()` / `monitor_consumo()` |
+| El campo de "IP / red objetivo" (las 7 categorías pueden apuntar a un objetivo distinto de la red local detectada) | Frontend: `src/components/ScanView.ts` (`renderActionBar()` para las 6 categorías genéricas, `buildCustomForm()` para Personalizado) → `src/state/scanState.ts::startScan()`/`startCustomScan()` → `src/api/heraApi.ts`. Backend: `tools/nmap.py::_escribir_hosts_file()`, parámetro `target` en cada función de escaneo |
+| Las etiquetas de puertos en Auditoría Admin (ej. "cPanel", "TR-069") | `src/utils/portLabels.ts` — deben coincidir con la lista de puertos real en `tools/nmap.py::admin_audit()` (y con `frontend/option.py`) |
 | Qué cuenta como "vulnerabilidad confirmada" vs "posible" vs "informativa" | **No está en TypeScript.** Vive en `utils/vuln_classification.py` (Python) — es la única fuente de verdad, compartida por CLI y GUI. Ver sección siguiente |
 | Cómo se agrupan los dispositivos, qué campos trae cada uno | `utils/parser.py` (Python) — el frontend solo consume lo que esta función ya arma |
 | Qué comandos puede invocar la interfaz desde Rust | `frontend/src-tauri/src/main.rs` — cada `#[tauri::command]` es una función que el TS puede llamar con `invoke("nombre_comando", {...})`. **Nota de arquitectura pendiente de evaluar:** el archivo `option.py` (mapeo de selección del usuario a parámetros de herramienta) quedó semi-inutilizado — al parecer, en algún punto del desarrollo asistido, las funciones que normalmente pasarían por `option.py` terminaron invocándose directamente desde `executor.py`. Esto no es necesariamente malo, pero falta evaluar qué tan independientes deben quedar las capas de HERA (frontend / core / tools) para no romper la separación de responsabilidades original. |

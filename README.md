@@ -21,7 +21,7 @@ El proyecto está en desarrollo activo. HERA está pensado como un orquestador d
 
 | Categoría | Herramienta(s) | Estado |
 |---|---|---|
-| Escanear | Nmap | **Implementado** — 8 modalidades de escaneo, dashboard y pestaña dedicada |
+| Escanear | Nmap | **Implementado** — 7 modalidades de escaneo, dashboard y pestaña dedicada |
 | Vulnerar (encontrar vulnerabilidades) | Nikto | **No implementado** — planeado, sin desarrollo iniciado |
 | Penetrar | Por definir | **No implementado** — planeado, sin desarrollo iniciado |
 
@@ -56,16 +56,20 @@ De las 3 categorías de herramientas planeadas, solo
 |---|---|
 | Escaneo rápido | Descubre hosts activos y sus 100 puertos más comunes |
 | Vulnerabilidades | Corre los scripts NSE de la categoría `vuln` + `vulners` (CVEs conocidos por versión) |
-| Dispositivos ocultos | Escaneo sigiloso (fragmentado, sin ping) pensado para evadir firewalls/IDS |
-| Auditoría admin | Busca puertos de gestión expuestos (SSH, RDP, VNC, paneles web, bases de datos) |
-| Identificación de dispositivos | Fingerprinting agresivo (SO, marca/modelo) |
-| Monitor de consumo | Detecta puertos de streaming, gaming y VoIP |
+| Dispositivos ocultos | Encuentra los hosts que están en la red pero no responden al ping (firewall o configurados para no contestar): compara quién responde a ARP contra quién responde a ICMP, y escanea a fondo solo a los ocultos |
+| Auditoría admin | Busca puertos de gestión expuestos (SSH, RDP, VNC, paneles web, bases de datos, SNMP, IPMI, TR-069) y el título de cada panel web para saber cuál es |
+| Identificación de dispositivos | Fingerprinting agresivo (SO, marca/modelo vía NetBIOS, SMB, mDNS y UPnP) |
 | Full Pack | Combina todas las técnicas anteriores en un solo escaneo exhaustivo |
 | Personalizado | Control manual de protocolo (TCP/UDP/SCTP), tipo de escaneo TCP, timing y puertos — implementado en ambas interfaces |
 
+**Evasión de firewall/IDS (opcional):** Dispositivos ocultos, Full Pack y Personalizado
+permiten activar fragmentación, señuelos y orden aleatorio de hosts. Va **apagada por
+defecto**: HERA audita tu propia red, donde esconderse no aporta y vuelve el escaneo más lento
+y menos preciso. Sirve para comprobar si tu propio firewall/IDS detecta un escaneo sigiloso.
+
 **Nota de diseño importante:** por defecto, HERA audita la **subred local**, detectada automáticamente vía `ip route` (Linux/macOS) o `ipconfig`
 (Windows) — el objetivo es mapear los dispositivos de tu propia red (routers, IoT,
-laptops, etc.). Las 8 categorías de escaneo también aceptan un **objetivo específico**
+laptops, etc.). Las 7 categorías de escaneo también aceptan un **objetivo específico**
 opcional (una IP, un rango, un CIDR o un hostname — cualquier formato que Nmap acepte),
 que reemplaza la subred local detectada solo para esa ejecución.
 
@@ -114,8 +118,9 @@ gráfico sobre el mismo CLI** — no hay una segunda implementación del "motor"
 
 ```
 HERA.py                    → punto de entrada del CLI
-frontend/CLI.py            → menús y flujo del CLI
-frontend/option.py         → mapea la selección del usuario a parámetros de herramienta
+frontend/CLI.py            → menús y flujo del CLI (Dashboard / Mapear / Detectar / Vulnerar)
+frontend/option.py         → catálogo de categorías de escaneo (espejo de viewState.ts)
+frontend/cli_render.py     → presentación del CLI en terminal (espejo de los componentes de src/)
 frontend/src-tauri/        → aplicación nativa (Rust/Tauri) — shell de la interfaz gráfica
 frontend/src/              → interfaz gráfica (TypeScript vanilla, sin framework)
 core/executor.py           → detección de red local, localización del binario de Nmap
@@ -136,7 +141,7 @@ utils/Resultados/            → salida de cada escaneo (XML, grepable, normal),
   y el descubrimiento de red tanto en Windows (`ipconfig`) como en Linux/macOS
   (`ip route`), además de localizar el binario de Nmap correspondiente.
 - **`frontend/`** — contiene la interfaz de usuario. Incluye tanto el CLI (`CLI.py`,
-  `option.py`) como la interfaz nativa Tauri (`src-tauri/`, `src/`). El frontend se
+  `option.py`, `cli_render.py`) como la interfaz nativa Tauri (`src-tauri/`, `src/`). El frontend se
   comunica únicamente con `core` y `tools`; esta capa nunca ejecuta herramientas
   directamente.
 - **`tools/`** — contiene las herramientas orquestadas por HERA. Cada herramienta vive en
@@ -190,6 +195,12 @@ Nunca se hardcodea `sudo` en `tools/nmap.py` directamente — todo pasa por
 ```bash
 python3 HERA.py
 ```
+
+El CLI tiene la misma navegación que la interfaz nativa: **Dashboard** (resumen combinado y
+Full Pack), **Mapear** y **Detectar** (una pantalla por categoría para ejecutar con IP o red
+objetivo opcional, ver resultados, buscar y comparar con el escaneo anterior) y **Vulnerar**
+(próximamente). `Ctrl+C` durante un escaneo lo cancela y descarta los archivos parciales.
+Los colores se desactivan con `NO_COLOR=1`.
 
 ### Interfaz nativa (desarrollo)
 

@@ -2,16 +2,15 @@
 // "Personalizado"), y resultados presentados según el tipo de escaneo elegido:
 //   - "vuln": separa hallazgos Confirmados de Posibles (sin confirmar)
 //   - "admin": solo puertos ABIERTOS de gestión, marcando los no estándar
-//   - "consumo": puertos traducidos a protocolos reconocibles (streaming/gaming/VoIP)
 //   - resto: grid genérico de cards por dispositivo (IP, MAC, puertos/servicios, vulnerabilidades)
 // "Personalizado" no tiene botón "Ejecutar" directo: requiere completar un formulario
-// (protocolo, timing, puertos) antes de poder lanzarse, replicando lo que el CLI pide por
-// teclado en tools/nmap.py::personalizado.
+// (protocolo, timing, puertos) antes de poder lanzarse, igual que el formulario del CLI
+// (frontend/CLI.py::formulario_personalizado). Ambos terminan en tools/nmap.py::personalizado.
 
 import { viewState, ScanCategory } from "../state/viewState";
 import { scanState } from "../state/scanState";
 import { heraApi, CategoryDevice, Vulnerability, PossibleVulnerability, CustomScanParams, ScanTimeInfo } from "../api/heraApi";
-import { adminPortLabel, isAdminPortStandard, consumoPortLabel } from "../utils/portLabels";
+import { adminPortLabel, isAdminPortStandard } from "../utils/portLabels";
 import "../styles/ScanView.css";
 
 export class ScanView {
@@ -30,12 +29,17 @@ export class ScanView {
     portMode: "top",
     portValue: "1000",
     target: "",
+    evasion: false,
   };
 
   // IP/red objetivo para las 7 categorías que NO son "Personalizado". Por defecto vacío
   // (usa la subred local detectada automáticamente); el usuario puede escribir cualquier
   // IP, rango o CIDR que Nmap acepte en un archivo -iL.
   private targetInput: string = "";
+
+  // Evasión de firewall/IDS para las categorías no personalizadas que la admiten
+  // (cat.supportsEvasion). Apagada por defecto; el Personalizado guarda la suya en customForm.
+  private evasionEnabled: boolean = false;
 
   // Duración del último escaneo cargado para la categoría actual (viene de
   // obtener_resultados_categoria -> 'scan_time'). Se resetea en cada carga.
@@ -164,12 +168,19 @@ export class ScanView {
         return;
       }
 
-      await scanState.startScan(cat.id, this.targetInput);
+      await scanState.startScan(cat.id, this.targetInput, cat.supportsEvasion ? this.evasionEnabled : false);
       this.loadAndRenderResults();
     });
 
     this.actionBar.appendChild(label);
     this.actionBar.appendChild(targetField);
+    if (cat.supportsEvasion) {
+      this.actionBar.appendChild(
+        this.buildEvasionToggle(this.evasionEnabled, (checked) => {
+          this.evasionEnabled = checked;
+        })
+      );
+    }
     this.actionBar.appendChild(runBtn);
   }
 
@@ -284,6 +295,12 @@ export class ScanView {
     targetField.appendChild(targetInputEl);
     form.appendChild(targetField);
 
+    form.appendChild(
+      this.buildEvasionToggle(this.customForm.evasion ?? false, (checked) => {
+        this.customForm.evasion = checked;
+      })
+    );
+
     // Botón ejecutar (con validación previa — ver validateCustomForm)
     const runBtn = document.createElement("button");
     runBtn.className = "hera-scanview-run-btn";
@@ -346,7 +363,7 @@ export class ScanView {
 
   // Valida los parámetros del formulario "Personalizado" del lado del cliente, antes de
   // siquiera invocar Tauri — evita un viaje redondo a Rust/Python solo para recibir un
-  // error de validación. La MISMA validación se repite en tools/nmap.py::_validar_parametros_personalizado
+  // error de validación. La MISMA validación se repite en tools/nmap.py::validar_parametros_personalizado
   // como defensa del lado del backend (por si algún día hay otro llamador de trigger_custom_scan
   // que no pase por este formulario). Devuelve un mensaje de error, o null si todo es válido.
   private validateCustomForm(): string | null {
@@ -418,6 +435,26 @@ export class ScanView {
     }
   }
 
+  // Casilla opcional de evasión de firewall/IDS (fragmentación, señuelos, orden aleatorio).
+  // Usa su propia clase y no .hera-custom-field, porque ese estilo quita la apariencia nativa
+  // de los <input> y dejaría la casilla invisible.
+  private buildEvasionToggle(checked: boolean, onChange: (checked: boolean) => void): HTMLElement {
+    const label = document.createElement("label");
+    label.className = "hera-evasion-toggle";
+    label.title =
+      "Fragmentación, señuelos y orden aleatorio. Solo útil para probar si tu propio firewall/IDS " +
+      "detecta un escaneo sigiloso: vuelve el escaneo más lento y menos preciso.";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = checked;
+    checkbox.addEventListener("change", () => onChange(checkbox.checked));
+
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode("Evasión de firewall/IDS"));
+    return label;
+  }
+
   private buildSelectField(
     labelText: string,
     options: { value: string; label: string }[],
@@ -456,8 +493,18 @@ export class ScanView {
     try {
       const result = await heraApi.getCategoryResults(cat.file_base);
       this.lastScanTime = result.scan_time ?? null;
-      if (!result.found || result.devices.length === 0) {
+      if (!result.found) {
         this.resultsArea.innerHTML = `<p class="hera-scan-empty-note">Sin resultados previos para esta categoría. Ejecuta un escaneo para ver datos aquí.</p>`;
+        return;
+      }
+      if (result.devices.length === 0) {
+        // Un escaneo terminado sin dispositivos es un resultado en sí: en "ocultos" significa
+        // que todos los hosts activos responden al ping.
+        const nota =
+          cat.id === "ocultos"
+            ? "Ningún dispositivo oculto: todos los hosts activos responden al ping."
+            : "El último escaneo no encontró dispositivos activos.";
+        this.resultsArea.innerHTML = `<p class="hera-scan-empty-note">${nota}</p>`;
         return;
       }
       this.renderDevices(cat, result.devices);
@@ -496,29 +543,24 @@ export class ScanView {
       card.appendChild(header);
 
       // Detección de SO (si la categoría corrió -O y Nmap logró algo). Se muestra para
-      // cualquier categoría excepto 'vuln'/'consumo', que mantienen su presentación propia.
-      if (cat.id !== "vuln" && cat.id !== "consumo") {
+      // cualquier categoría excepto 'vuln', que mantiene su presentación propia.
+      if (cat.id !== "vuln") {
         const osBlock = this.renderOsInfo(dev);
         if (osBlock) card.appendChild(osBlock);
       }
 
       if (cat.id === "admin") {
         card.appendChild(this.renderAdminPorts(dev));
-      } else if (cat.id === "consumo") {
-        card.appendChild(this.renderConsumoPorts(dev));
       } else {
         card.appendChild(this.renderGenericBadges(dev));
       }
 
-      // Puertos filtrados (probable firewall): se muestran para cualquier categoría excepto
-      // 'consumo' (esa vista es sobre protocolos reconocidos, no sobre exposición/firewall).
-      if (cat.id !== "consumo") {
-        const filteredBlock = this.renderFilteredPorts(dev);
-        if (filteredBlock) card.appendChild(filteredBlock);
-      }
+      // Puertos filtrados (probable firewall).
+      const filteredBlock = this.renderFilteredPorts(dev);
+      if (filteredBlock) card.appendChild(filteredBlock);
 
       // URLs "Location:" (SSDP/UPnP) — pistas de identificación del dispositivo.
-      if (cat.id !== "vuln" && cat.id !== "consumo") {
+      if (cat.id !== "vuln") {
         const locBlock = this.renderLocationUrls(dev);
         if (locBlock) card.appendChild(locBlock);
       }
@@ -637,25 +679,11 @@ export class ScanView {
       const badge = document.createElement("span");
       const standard = isAdminPortStandard(port);
       badge.className = "hera-scan-badge" + (standard ? "" : " is-warning");
-      badge.textContent = standard
-        ? `${port}/${adminPortLabel(port)}`
-        : `${port}/${adminPortLabel(port)} ⚠ no estándar`;
-      wrap.appendChild(badge);
-    });
-    return wrap;
-  }
-
-  private renderConsumoPorts(dev: CategoryDevice): HTMLElement {
-    const wrap = document.createElement("div");
-    wrap.className = "hera-scan-badges";
-    if (dev.ports.length === 0) {
-      wrap.innerHTML = `<span class="hera-scan-empty-note">Sin protocolos de consumo detectados abiertos</span>`;
-      return wrap;
-    }
-    dev.ports.forEach((port) => {
-      const badge = document.createElement("span");
-      badge.className = "hera-scan-badge";
-      badge.textContent = consumoPortLabel(port);
+      // Título de la página (http-title): dice QUÉ panel es, no solo que el puerto está abierto.
+      const title = dev.service_details.find((d) => d.port === port && d.state === "open" && d.title)?.title;
+      const base = title ? `${port}/${adminPortLabel(port)} "${title}"` : `${port}/${adminPortLabel(port)}`;
+      badge.textContent = standard ? base : `${base} ⚠ no estándar`;
+      if (title) badge.title = title;
       wrap.appendChild(badge);
     });
     return wrap;
