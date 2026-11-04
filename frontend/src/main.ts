@@ -1,198 +1,255 @@
-// Punto de entrada principal. Monta el menú horizontal fijo, el dashboard combinado
-// (vista por defecto) y la pestaña de Escaneo por categoría, alternando entre ambas según
-// viewState sin usar una librería de rutas — todo vanilla, consistente con el resto del proyecto.
+// HERA, dirección B "Lámina": la red como un plano técnico. Claro, editorial, con la vista
+// explotada del host elegido en el centro y el plan de acción como columna propia.
 
-import "./index.css";
+import "@fontsource-variable/familjen-grotesk";
+import "@fontsource-variable/azeret-mono";
+import "./styles/lamina.css";
+
 import { scanState, AppState } from "./state/scanState";
-import { viewState } from "./state/viewState";
-import { Card } from "./components/Card";
-import { SecurityCard } from "./components/SecurityCard";
-import { NetworkChart } from "./components/NetworkChart";
-import { ScanButton } from "./components/ScanButton";
-import { ResultsTable } from "./components/ResultsTable";
-import { NavBar } from "./components/NavBar";
+import { viewState, ViewName } from "./state/viewState";
 import { ScanView } from "./components/ScanView";
-import { VulnerarView } from "./components/VulnerarView";
+import { dibujarHost, specsHost } from "./components/ExplodedHost";
+import { generarPlan, PRIORIDAD_TEXTO } from "./synthesis/plan";
+import type { Device } from "./api/heraApi";
+import { esc, estadoRed, estadoHost, ESTADO_FORMA, ESTADO_TEXTO, formatoReloj } from "./utils/security";
 
-document.addEventListener("DOMContentLoaded", () => {
-  const app = document.getElementById("app");
-  if (!app) return;
+type Vista = ViewName | "penetrar";
+let seleccionado: string | null = null;
+let ultimo: AppState | null = null;
 
-  // ── 0. MENÚ HORIZONTAL (siempre visible, controla la vista activa) ────────
-  const navBar = new NavBar();
-  app.appendChild(navBar.getElement());
+const app = document.getElementById("app")!;
+app.innerHTML = `
+  <header class="cabecera">
+    <button class="marca" data-vista="dashboard" aria-label="HERA, ir al resumen">hera</button>
+    <nav class="nav" aria-label="Secciones">
+      <button data-vista="dashboard">Resumen</button>
+      <button data-vista="mapear">Mapear</button>
+      <button data-vista="detectar">Detectar</button>
+      <button data-vista="vulnerar" class="es-futuro">Vulnerar</button>
+      <button data-vista="penetrar" class="es-futuro">Penetrar</button>
+    </nav>
+    <div class="control" id="control"></div>
+  </header>
+  <div class="aviso-error" id="aviso-error" role="alert" hidden></div>
 
-  // ── 0b. BANNER DE ERROR (global: visible sin importar la vista activa,
-  // porque un escaneo puede lanzarse desde el dashboard O desde la pestaña Escaneo) ──
-  const errorBanner = document.createElement("div");
-  errorBanner.className = "hera-error-banner";
-  errorBanner.style.display = "none";
-  app.appendChild(errorBanner);
+  <main id="vista-dashboard" class="hoja">
+    <section class="titular" id="titular"></section>
 
-  // ── 1. VISTA: DASHBOARD COMBINADO (contenido existente, sin cambios de lógica) ──
-  // El branding "HERA" ya vive en el NavBar (arriba); no se duplica aquí.
-  const dashboardContainer = document.createElement("div");
-  dashboardContainer.style.padding = "0 20px";
-  app.appendChild(dashboardContainer);
+    <section class="mesa">
+      <div class="col piezas">
+        <h2 class="col-t">Dispositivos</h2>
+        <ul class="lista-piezas" id="piezas"></ul>
+      </div>
+      <div class="col lamina">
+        <div class="lamina-dibujo" id="dibujo"></div>
+        <div class="lamina-specs" id="specs"></div>
+      </div>
+      <div class="col plan" id="plan"></div>
+    </section>
 
-  const dashGrid = document.createElement("div");
-  dashGrid.className = "hera-dashboard-grid";
-  dashGrid.style.marginBottom = "24px";
-  dashboardContainer.appendChild(dashGrid);
+    <footer class="cajetin" id="cajetin"></footer>
+  </main>
 
-  const leftCol = document.createElement("div");
-  leftCol.className = "hera-dashboard-left";
-  dashGrid.appendChild(leftCol);
+  <main id="vista-escaneo" class="hoja hoja-escaneo" hidden></main>
+  <main id="vista-futuro" class="hoja futuro" hidden></main>
+`;
 
-  // "Dirección de Red": muestra la subred auditada (leída de hosts.txt), no la IP local.
-  const hostCard = new Card(
-    "Dirección de Red",
-    `<svg class="card-icon" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5" viewBox="0 0 24 24">
-      <rect x="2" y="2" width="20" height="8" rx="2"></rect>
-      <rect x="2" y="14" width="20" height="8" rx="2"></rect>
-      <line x1="6" y1="6" x2="6.01" y2="6"></line>
-      <line x1="6" y1="18" x2="6.01" y2="18"></line>
-    </svg>`
-  );
-  leftCol.appendChild(hostCard.getElement());
+app.querySelectorAll<HTMLButtonElement>("[data-vista]").forEach((b) => b.addEventListener("click", () => irA(b.dataset.vista as Vista)));
 
-  const securityCard = new SecurityCard();
-  leftCol.appendChild(securityCard.getElement());
+const scanView = new ScanView();
+document.getElementById("vista-escaneo")!.appendChild(scanView.getElement());
 
-  const networkChart = new NetworkChart();
-  networkChart.getElement().style.height = "100%";
-  dashGrid.appendChild(networkChart.getElement());
-
-  // Botón único del dashboard: SIEMPRE dispara full_pack (confirmado), sin importar
-  // qué categoría esté seleccionada en la pestaña Escaneo.
-  const scanButton = new ScanButton();
-  scanButton.getElement().style.marginBottom = "24px";
-  dashboardContainer.appendChild(scanButton.getElement());
-
-  const summaryBar = document.createElement("div");
-  summaryBar.className = "hera-summary-bar";
-  summaryBar.innerHTML = `
-    <div class="hera-summary-item">
-      <span class="hera-summary-value" id="stat-last-scan">—</span>
-      <span class="hera-summary-label">Último Escaneo</span>
-    </div>
-    <div style="width:1px;height:36px;background:var(--color-border-inactive);"></div>
-    <div class="hera-summary-item">
-      <span class="hera-summary-value" id="stat-hosts">—</span>
-      <span class="hera-summary-label">Hosts Activos</span>
-    </div>
-    <div style="width:1px;height:36px;background:var(--color-border-inactive);"></div>
-    <div class="hera-summary-item">
-      <span class="hera-summary-value" id="stat-vulns">—</span>
-      <span class="hera-summary-label">Vulnerabilidades</span>
-    </div>
-    <div style="width:1px;height:36px;background:var(--color-border-inactive);"></div>
-    <div class="hera-summary-item">
-      <span class="hera-summary-value" id="stat-scan-time">—</span>
-      <span class="hera-summary-label">Tiempo Escaneando</span>
-    </div>
-  `;
-  dashboardContainer.appendChild(summaryBar);
-  summaryBar.style.marginBottom = "24px";
-
-  const resultsTable = new ResultsTable();
-  dashboardContainer.appendChild(resultsTable.getElement());
-
-  // ── 2. VISTA: MAPEAR / DETECTAR (mismo componente ScanView, filtra categorías
-  // según cuál de las dos pestañas esté activa — ver viewState.getCategoriesForCurrentView) ──
-  const scanView = new ScanView();
-  const scanViewContainer = scanView.getElement();
-  scanViewContainer.style.display = "none";
-  app.appendChild(scanViewContainer);
-
-  // ── 2b. VISTA: VULNERAR (placeholder — sin herramientas implementadas todavía) ──
-  const vulnerarView = new VulnerarView();
-  const vulnerarContainer = vulnerarView.getElement();
-  vulnerarContainer.style.display = "none";
-  app.appendChild(vulnerarContainer);
-
-  // ── 3. ALTERNAR ENTRE LAS 4 VISTAS ──────────────────────────────────────────
-  viewState.subscribe(() => {
-    const view = viewState.getView();
-    const isScanGroup = view === "mapear" || view === "detectar";
-
-    dashboardContainer.style.display = view === "dashboard" ? "block" : "none";
-    scanViewContainer.style.display = isScanGroup ? "block" : "none";
-    vulnerarContainer.style.display = view === "vulnerar" ? "block" : "none";
-
-    if (isScanGroup) {
-      scanView.activate();
-    } else {
-      scanView.deactivate();
-    }
+function irA(v: Vista) {
+  if (v === "dashboard") viewState.goToDashboard();
+  else if (v === "mapear") viewState.goToMapear();
+  else if (v === "detectar") viewState.goToDetectar();
+  else viewState.goToVulnerar();
+  const esEscaneo = v === "mapear" || v === "detectar";
+  (document.getElementById("vista-dashboard") as HTMLElement).hidden = v !== "dashboard";
+  (document.getElementById("vista-escaneo") as HTMLElement).hidden = !esEscaneo;
+  (document.getElementById("vista-futuro") as HTMLElement).hidden = !(v === "vulnerar" || v === "penetrar");
+  app.querySelectorAll<HTMLButtonElement>(".nav [data-vista]").forEach((b) => {
+    b.classList.toggle("is-activo", b.dataset.vista === v);
+    if (b.dataset.vista === v) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
   });
+  if (esEscaneo) scanView.activate();
+  else scanView.deactivate();
+  if (v === "vulnerar" || v === "penetrar") {
+    const el = document.getElementById("vista-futuro")!;
+    el.innerHTML = `
+      <div class="futuro-caja">
+        <p class="futuro-k">En preparación</p>
+        <h2>${v}</h2>
+        <p>${
+          v === "vulnerar"
+            ? "Comprobará si los hallazgos de Detectar se pueden aprovechar de verdad, para saber cuáles corregir primero."
+            : "Pruebas de penetración controladas sobre tu propia red, siempre con confirmación previa."
+        } Todavía no hay nada que ejecutar aquí.</p>
+        <button class="btn-sec" id="ir-detectar">Ir a Detectar</button>
+      </div>`;
+    el.querySelector("#ir-detectar")!.addEventListener("click", () => irA("detectar"));
+  }
+}
 
-  // ── 4. REACTIVIDAD DEL DASHBOARD: Suscripción al estado global de escaneo ───
-  scanState.subscribe((state: AppState) => {
+// ── Control de escaneo ──────────────────────────────────────────────────────
+const control = document.getElementById("control")!;
+let reloj: number | null = null;
+function pintarControl(st: AppState) {
+  if (reloj !== null) clearInterval(reloj);
+  reloj = null;
+  if (!st.isScanning) {
+    control.innerHTML = `<button class="btn-pri" id="escanear">${st.hasResults ? "Volver a escanear" : "Escanear la red"}</button>`;
+    control.querySelector("#escanear")!.addEventListener("click", () => scanState.startScan("full_pack", undefined, false, "Full pack"));
+    return;
+  }
+  control.innerHTML = `<span class="en-curso" role="status">Escaneando la red <span class="reloj" id="reloj">00:00</span></span><button class="btn-sec" id="cancelar">Cancelar escaneo</button>`;
+  const r = control.querySelector("#reloj")!;
+  const t = () => (r.textContent = formatoReloj(Date.now() - (st.scanStartedAt ?? Date.now())));
+  t();
+  reloj = window.setInterval(t, 1000);
+  control.querySelector("#cancelar")!.addEventListener("click", () => scanState.cancelScan());
+}
 
-    // A. Banner de error (solo se muestra si hubo un fallo real, no por falta de datos).
-    // Visible en cualquier vista: un escaneo lanzado desde "Escaneo" también puede fallar.
-    if (state.error) {
-      errorBanner.textContent = `${state.error}`;
-      errorBanner.style.display = "block";
-    } else {
-      errorBanner.style.display = "none";
-    }
+// ── Resumen ─────────────────────────────────────────────────────────────────
+function pintarTitular(st: AppState) {
+  const est = estadoRed(st.stats, st.hasResults);
+  const el = document.getElementById("titular")!;
+  if (est === "sin-datos") {
+    el.className = "titular est-sin-datos";
+    el.innerHTML = `
+      <h1>aún no hay plano de tu red.</h1>
+      <p class="bajada">Un escaneo completo dibuja cada dispositivo, sus puertos y lo que conviene revisar. Tarda entre 5 y 30 minutos y puedes cancelarlo en cualquier momento.</p>`;
+    return;
+  }
+  const plan = generarPlan(st.devices);
+  const hoy = plan.acciones.filter((a) => a.prioridad === "riesgo").length;
+  const semana = plan.acciones.filter((a) => a.prioridad === "alerta").length;
+  const frase: Record<string, string> = {
+    riesgo: "tu red está en riesgo.",
+    alerta: "tu red necesita una revisión.",
+    seguro: "tu red está en orden.",
+  };
+  el.className = `titular est-${est}`;
+  el.innerHTML = `
+    <p class="sello">${ESTADO_FORMA[est]} ${ESTADO_TEXTO[est]}</p>
+    <h1>${frase[est]}</h1>
+    <p class="bajada">${
+      hoy || semana
+        ? `${hoy ? `${hoy} ${hoy === 1 ? "cosa" : "cosas"} para hoy` : ""}${hoy && semana ? " y " : ""}${semana ? `${semana} para esta semana` : ""}. Empieza por la primera de la columna de la derecha.`
+        : "No hay nada urgente. Repite el escaneo cuando conectes equipos nuevos."
+    }</p>`;
+}
 
-    // B. Tarjeta de "Dirección de Red"
-    if (state.hostInfo) {
-      hostCard.setContent(`
-        <div style="display:flex;flex-direction:column;justify-content:center;gap:12px;height:100%;padding:6px 0;">
-          <div style="font-size:1.85rem;font-weight:900;color:var(--color-primary);font-family:monospace;letter-spacing:1px;">
-            ${state.hostInfo.ip}
-          </div>
-          <div style="font-size:0.75rem;opacity:0.6;display:flex;align-items:center;gap:6px;">
-            <svg style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2.5" viewBox="0 0 24 24">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-              <polyline points="9 22 9 12 15 12 15 22"></polyline>
-            </svg>
-            Hostname:&nbsp;<strong style="color:var(--color-text-light);">${state.hostInfo.hostname}</strong>
-          </div>
-        </div>`);
-    } else {
-      hostCard.setContent(`
-        <div style="font-size:0.75rem;opacity:0.45;display:flex;align-items:center;gap:8px;">
-          <div class="hera-btn-spinner" style="width:14px;height:14px;border-width:2px;"></div>
-          Obteniendo dirección de red...
-        </div>`);
-    }
+function pintarPiezas(devices: Device[]) {
+  const ul = document.getElementById("piezas")!;
+  if (!devices.length) {
+    ul.innerHTML = `<li class="vacio">Los dispositivos aparecerán aquí tras el primer escaneo.</li>`;
+    return;
+  }
+  // Primero lo que está en riesgo: la lista es también un orden de revisión.
+  const peso = { riesgo: 0, alerta: 1, seguro: 2, "sin-datos": 3 } as const;
+  const orden = [...devices].sort((a, b) => peso[estadoHost(a)] - peso[estadoHost(b)]);
+  ul.innerHTML = orden
+    .map((d) => {
+      const est = estadoHost(d);
+      const n = d.vulnerabilities.length;
+      return `<li><button class="pieza est-${est}${d.ip === seleccionado ? " is-sel" : ""}" data-ip="${esc(d.ip)}" aria-pressed="${d.ip === seleccionado}">
+        <span class="pieza-est">${ESTADO_FORMA[est]}<span class="sr">${ESTADO_TEXTO[est]}</span></span>
+        <span class="pieza-ip">${esc(d.ip)}</span>
+        <span class="pieza-n">${n ? `${n} ${n === 1 ? "hallazgo" : "hallazgos"}` : `${d.ports.length} puertos`}</span>
+        <span class="pieza-nombre">${esc(d.device || "Sin nombre")}</span>
+      </button></li>`;
+    })
+    .join("");
+  ul.querySelectorAll<HTMLButtonElement>(".pieza").forEach((b) => b.addEventListener("click", () => seleccionar(b.dataset.ip!)));
+}
 
-    // C. Tarjeta de seguridad: si NO hay resultados previos, se pasa null explícitamente.
-    securityCard.updateState(state.hasResults ? state.stats : null);
+function seleccionar(ip: string) {
+  seleccionado = ip;
+  if (!ultimo) return;
+  pintarPiezas(ultimo.devices);
+  pintarLamina(ultimo.devices, true);
+}
 
-    // D. Gráfico de red
-    networkChart.updateState(state.devices);
+function pintarLamina(devices: Device[], animar = false) {
+  const d = devices.find((x) => x.ip === seleccionado) ?? null;
+  const dib = document.getElementById("dibujo")!;
+  dib.innerHTML = `
+    <div class="lamina-cab">
+      <p class="lamina-t">${d ? esc(d.ip) : "vista explotada"}</p>
+      <p class="lamina-sub">${d ? `${esc(d.device || "sin nombre")}, vista explotada` : devices.length ? "elige un dispositivo de la lista" : "se dibuja tras el primer escaneo"}</p>
+    </div>
+    ${dibujarHost(d)}`;
+  if (animar) {
+    dib.classList.remove("explota");
+    void dib.offsetWidth;
+    dib.classList.add("explota");
+  }
+  document.getElementById("specs")!.innerHTML = d ? specsHost(d) : `<p class="vacio">La lámina muestra un dispositivo separado en capas, de lo físico a lo expuesto.</p>`;
+}
 
-    // E. Botón único del dashboard (siempre full_pack)
-    scanButton.updateState(state.isScanning, state.hasResults);
+function pintarPlan(devices: Device[]) {
+  const el = document.getElementById("plan")!;
+  const plan = generarPlan(devices);
+  if (!devices.length) {
+    el.innerHTML = `<h2 class="col-t">Qué hacer</h2><p class="vacio">Tras el escaneo, aquí tendrás los pasos ordenados por urgencia.</p>`;
+    return;
+  }
+  el.innerHTML = `
+    <h2 class="col-t">Qué hacer</h2>
+    <ol class="acciones">${plan.acciones
+      .map(
+        (a, i) => `<li class="accion est-${a.prioridad === "info" ? "sin-datos" : a.prioridad}"><details ${i < 3 ? "open" : ""}>
+          <summary><span class="accion-prio">${ESTADO_FORMA[a.prioridad === "info" ? "sin-datos" : a.prioridad]} ${PRIORIDAD_TEXTO[a.prioridad]}</span>
+          <span class="accion-t">${esc(a.titulo)}</span></summary>
+          <p class="accion-m">${esc(a.motivo)}</p>
+          <ul class="accion-p">${a.pasos.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>
+          <p class="accion-h">${[...new Set(a.hosts.map((h) => h.ip))].map((ip) => `<button data-ip="${esc(ip)}">${esc(ip)}</button>`).join("")}</p>
+        </details></li>`
+      )
+      .join("")}</ol>
+    <p class="origen">Plan preliminar generado por reglas. La síntesis con IA ocupará esta columna.</p>`;
+  el.querySelectorAll<HTMLButtonElement>(".accion-h button").forEach((b) => b.addEventListener("click", () => seleccionar(b.dataset.ip!)));
+}
 
-    // F. Barra de estadísticas: "—" explícito cuando no hay resultados previos.
-    const lastScanEl = document.getElementById("stat-last-scan");
-    const hostsEl    = document.getElementById("stat-hosts");
-    const vulnsEl    = document.getElementById("stat-vulns");
-    const scanTimeEl = document.getElementById("stat-scan-time");
+function pintarCajetin(st: AppState) {
+  const s = st.stats;
+  const celdas: [string, string][] = [
+    ["red", st.hostInfo?.ip ?? "—"],
+    ["equipo", st.hostInfo?.hostname ?? "—"],
+    ["dispositivos", st.hasResults ? String(s?.active_devices ?? 0) : "—"],
+    ["hallazgos", st.hasResults ? String(s?.total_vulns ?? 0) : "—"],
+    ["tiempo escaneando", st.hasResults ? s?.scan_time_total_str ?? "—" : "—"],
+    ["revisión", st.hasResults ? s?.last_scan ?? "—" : "sin escanear"],
+  ];
+  document.getElementById("cajetin")!.innerHTML = `
+    <div class="caj-marca"><span>hera</span><span class="caj-sub">auditoría de red</span></div>
+    ${celdas.map(([k, v]) => `<div class="caj-celda"><span class="caj-k">${k}</span><span class="caj-v">${esc(v)}</span></div>`).join("")}`;
+}
 
-    if (lastScanEl) lastScanEl.textContent = state.hasResults ? (state.stats?.last_scan ?? "—") : "—";
-    if (hostsEl)    hostsEl.textContent    = state.hasResults ? (state.stats?.active_devices.toString() ?? "—") : "—";
-    if (scanTimeEl) scanTimeEl.textContent = state.hasResults ? (state.stats?.scan_time_total_str ?? "—") : "—";
-    if (vulnsEl) {
-      vulnsEl.textContent = state.hasResults ? (state.stats?.total_vulns ?? 0).toString() : "—";
-      if (state.hasResults) {
-        const sev = state.stats?.vulns_by_severity;
-        if (sev?.critical || sev?.high)   vulnsEl.style.color = "var(--color-security-risk)";
-        else if (sev?.medium)             vulnsEl.style.color = "var(--color-security-warn)";
-        else                              vulnsEl.style.color = "var(--color-security-safe)";
-      } else {
-        vulnsEl.style.color = "";
-      }
-    }
-
-    // G. Tabla de resultados
-    resultsTable.updateState(state.devices);
-  });
+// ── Reactividad ─────────────────────────────────────────────────────────────
+let firma = "";
+scanState.subscribe((st) => {
+  ultimo = st;
+  const err = document.getElementById("aviso-error")!;
+  err.hidden = !st.error;
+  err.textContent = st.error ? `No se pudo completar la operación: ${st.error}` : "";
+  pintarControl(st);
+  document.body.classList.toggle("escaneando", st.isScanning);
+  const f = JSON.stringify([st.stats, st.devices.length, st.hostInfo, st.hasResults]);
+  if (f === firma) return;
+  firma = f;
+  if (!seleccionado || !st.devices.some((d) => d.ip === seleccionado)) {
+    // Por defecto se dibuja el dispositivo más urgente.
+    const peor = st.devices.find((d) => estadoHost(d) === "riesgo") ?? st.devices[0];
+    seleccionado = peor?.ip ?? null;
+  }
+  pintarTitular(st);
+  pintarPiezas(st.devices);
+  pintarLamina(st.devices, true);
+  pintarPlan(st.devices);
+  pintarCajetin(st);
 });
+
+irA("dashboard");
