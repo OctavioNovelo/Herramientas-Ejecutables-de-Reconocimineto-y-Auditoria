@@ -12,7 +12,6 @@ import { scanState } from "../state/scanState";
 import { heraApi, CustomScanParams, ScanTimeInfo, ToolStatus } from "../api/heraApi";
 import { renderCategoryResults } from "./ScanResults";
 import { formatoReloj, esc } from "../utils/security";
-import "../styles/ScanView.css";
 
 export class ScanView {
   private element: HTMLElement;

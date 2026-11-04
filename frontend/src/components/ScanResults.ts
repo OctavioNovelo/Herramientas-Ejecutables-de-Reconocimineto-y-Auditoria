@@ -1,258 +1,130 @@
-// Render de los resultados de UNA categoría (pestaña Mapear/Detectar). Separado de ScanView
-// para que cada dirección visual pueda sustituirlo sin tocar la lógica de formularios,
-// instalación de herramientas ni cancelación. Recibe datos ya procesados por utils/parser.py.
+// Dirección A "Carta": resultados de una categoría como filas de instrumento. Cada host
+// lleva una regla de puertos en escala logarítmica (1–65535) donde cada marca es un puerto
+// abierto (lleno) o filtrado (hueco); al desplegar la fila se ve la ficha completa.
 
 import type { ScanCategory } from "../state/viewState";
 import { VULN_VIEW_IDS } from "../state/viewState";
-import type { CategoryDevice, Vulnerability, ScanTimeInfo } from "../api/heraApi";
+import type { CategoryDevice, ScanTimeInfo } from "../api/heraApi";
 import { adminPortLabel, isAdminPortStandard } from "../utils/portLabels";
+import { esc, estadoHost, ESTADO_FORMA, ESTADO_TEXTO } from "../utils/security";
+
+const RW = 420;
+const xPuerto = (p: number) => 6 + ((RW - 12) * Math.log10(Math.max(1, p))) / Math.log10(65535);
+
+function regla(dev: CategoryDevice, admin: boolean): string {
+  const escala = [1, 10, 100, 1000, 10000, 65535]
+    .map((p) => `<line class="r-tick" x1="${xPuerto(p)}" x2="${xPuerto(p)}" y1="30" y2="36"/><text class="r-esc" x="${xPuerto(p)}" y="46">${p === 65535 ? "65k" : p >= 1000 ? p / 1000 + "k" : p}</text>`)
+    .join("");
+  // Puertos casi contiguos (5000/5001) caen en el mismo píxel: se agrupan en una sola marca.
+  const grupos: number[][] = [];
+  for (const p of dev.ports.slice().sort((a, b) => a - b)) {
+    const g = grupos[grupos.length - 1];
+    if (g && xPuerto(p) - xPuerto(g[0]) < 6) g.push(p);
+    else grupos.push([p]);
+  }
+  let ultimoX = -99;
+  let fila = 0;
+  const marcas = grupos
+    .map((g) => {
+      const x = xPuerto(g[0]);
+      fila = x - ultimoX < 30 ? (fila + 1) % 2 : 0;
+      ultimoX = x;
+      const raro = admin && g.some((p) => !isAdminPortStandard(p));
+      const v = dev.vulnerabilities.some((x) => g.map(String).includes(String(x.port)));
+      return `<g class="r-marca${v ? " con-hallazgo" : ""}${raro ? " no-estandar" : ""}">
+        <line x1="${x}" x2="${x}" y1="${16 - fila * 11}" y2="34"/>
+        <text x="${x}" y="${12 - fila * 11}">${g.length > 2 ? `${g[0]}…${g[g.length - 1]}` : g.join(",")}</text></g>`;
+    })
+    .join("");
+  const filtrados = dev.filtered_ports.map((p) => `<circle class="r-filtrado" cx="${xPuerto(p)}" cy="34" r="2.6"/>`).join("");
+  return `<svg class="regla" viewBox="0 -22 ${RW} 72" role="img" aria-label="Puertos abiertos: ${dev.ports.join(", ") || "ninguno"}">
+    <line class="r-base" x1="6" x2="${RW - 6}" y1="34" y2="34"/>${escala}${marcas}${filtrados}</svg>`;
+}
+
+function ficha(cat: ScanCategory, dev: CategoryDevice): string {
+  const admin = cat.id === "admin";
+  const os = dev.os_info;
+  const so = os?.exact_match
+    ? [os.device_types.join(", "), os.running].filter(Boolean).join("  ") || os.details
+    : os?.guesses.length
+    ? os.guesses.map((g) => `${g.name ?? "?"} (${g.accuracy ?? "?"} %)`).join(", ") + "  sin coincidencia exacta"
+    : null;
+
+  const puertos = dev.service_details.length
+    ? `<table class="ficha-puertos"><thead><tr><th>puerto</th><th>estado</th><th>servicio</th><th>producto y versión</th></tr></thead><tbody>
+      ${dev.service_details
+        .map((s) => {
+          const raro = admin && s.state === "open" && !isAdminPortStandard(s.port);
+          const prod = [s.product, s.version, s.extrainfo].filter(Boolean).join(" ") || (s.title ? `“${s.title}”` : !s.reconocido && s.fingerprint ? "no reconocido, hay fingerprint" : "—");
+          return `<tr class="${s.state === "filtered" ? "es-filtrado" : ""}${raro ? " no-estandar" : ""}">
+            <td>${s.port}/${esc(s.protocol ?? "tcp")}</td>
+            <td>${s.state === "open" ? "abierto" : "filtrado"}</td>
+            <td>${esc(admin ? adminPortLabel(s.port) : s.service)}${raro ? ` <span class="tag-raro">no estándar</span>` : ""}</td>
+            <td>${esc(prod)}</td></tr>`;
+        })
+        .join("")}</tbody></table>`
+    : `<p class="ficha-vacia">${admin ? "Sin puertos de gestión abiertos." : "Sin puertos abiertos."}</p>`;
+
+  const conf = dev.vulnerabilities
+    .map(
+      (v) => `<li class="hall sev-${v.severity}">
+        <span class="hall-sev">${esc(v.sev_label)}</span>
+        <span class="hall-id">${esc(v.id)}${v.cve_count ? ` (${v.cve_count} CVE)` : ""}${v.port ? `  puerto ${esc(v.port)}` : ""}</span>
+        <span class="hall-txt">${esc(v.output)}</span>
+        ${v.remediation ? `<span class="hall-fix">Qué hacer: ${esc(v.remediation)}</span>` : ""}
+      </li>`
+    )
+    .join("");
+  const pos = (dev.possible_vulnerabilities ?? [])
+    .map((v) => `<li class="hall sev-posible"><span class="hall-sev">Sin confirmar</span><span class="hall-id">${esc(v.id)}</span><span class="hall-txt">${esc(v.output)}</span></li>`)
+    .join("");
+
+  const hallazgos =
+    VULN_VIEW_IDS.has(cat.id) || conf
+      ? `<div class="ficha-hall">
+          <div><h4>Confirmados (${dev.vulnerabilities.length})</h4>${conf ? `<ul>${conf}</ul>` : `<p class="ficha-vacia">Ninguno.</p>`}</div>
+          ${VULN_VIEW_IDS.has(cat.id) ? `<div><h4>Posibles, sin confirmar (${dev.possible_vulnerabilities.length})</h4>${pos ? `<ul>${pos}</ul>` : `<p class="ficha-vacia">Ninguno.</p>`}</div>` : ""}
+        </div>`
+      : "";
+
+  const urls = dev.location_urls.length
+    ? `<p class="ficha-urls">Descripción UPnP: ${dev.location_urls.map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(u)}</a>`).join(" ")}</p>`
+    : "";
+
+  return `<dl class="ficha-specs">
+      <div><dt>mac</dt><dd>${esc(dev.mac || "—")}</dd></div>
+      <div><dt>sistema</dt><dd>${esc(so ?? "no detectado en esta categoría")}</dd></div>
+      <div><dt>latencia</dt><dd>${dev.latency.toFixed(1)} ms</dd></div>
+    </dl>${puertos}${hallazgos}${urls}`;
+}
 
 export function renderCategoryResults(cat: ScanCategory, devices: CategoryDevice[], lastScanTime: ScanTimeInfo | null): HTMLElement {
-  const resultsArea = document.createElement("div");
-
-  // Duración del escaneo que generó estos resultados (ausente si el backend no la manda
-  // todavía para esta categoría, o si el XML no traía <runstats><finished>).
-  if (lastScanTime && lastScanTime.duracion_str !== "N/D") {
-    const timeNote = document.createElement("p");
-    timeNote.className = "hera-scan-time-note";
-    timeNote.textContent = `Duración del escaneo: ${lastScanTime.duracion_str}`;
-    resultsArea.appendChild(timeNote);
-  }
-
-  const grid = document.createElement("div");
-  // La categoría 'vuln' necesita más ancho por card: cada una se divide en 2 columnas
-  // (Confirmadas/Posibles) que no caben cómodamente en el ancho mínimo genérico de 300px.
-  const isVulnView = VULN_VIEW_IDS.has(cat.id);
-  grid.className = "hera-scan-devices-grid" + (isVulnView ? " is-vuln-grid" : "");
-
-  devices.forEach((dev) => {
-    const card = document.createElement("div");
-    card.className = "hera-scan-device-card";
-
-    const header = document.createElement("div");
-    header.className = "hera-scan-device-header";
-    header.innerHTML = `
-      <span class="hera-scan-device-ip">${dev.ip}</span>
-      <span class="hera-scan-device-name">${dev.device || "N/D"}</span>
-    `;
-    card.appendChild(header);
-
-    // Detección de SO (si la categoría corrió -O y Nmap logró algo). Se muestra para
-    // cualquier categoría excepto las de hallazgos (VULN_VIEW_IDS), que tienen su presentación propia.
-    if (!isVulnView) {
-      const osBlock = renderOsInfo(dev);
-      if (osBlock) card.appendChild(osBlock);
-    }
-
-    if (cat.id === "admin") {
-      card.appendChild(renderAdminPorts(dev));
-    } else {
-      card.appendChild(renderGenericBadges(dev));
-    }
-
-    // Puertos filtrados (probable firewall).
-    const filteredBlock = renderFilteredPorts(dev);
-    if (filteredBlock) card.appendChild(filteredBlock);
-
-    // URLs "Location:" (SSDP/UPnP) — pistas de identificación del dispositivo.
-    if (!isVulnView) {
-      const locBlock = renderLocationUrls(dev);
-      if (locBlock) card.appendChild(locBlock);
-    }
-
-    if (isVulnView) {
-      card.appendChild(renderVulnSplit(dev));
-    } else if (dev.vulnerabilities.length > 0) {
-      // Otras categorías (ej. full_pack) también pueden traer hallazgos confirmados:
-      // se muestran como badges simples, sin el desglose de dos columnas de "vuln".
-      card.appendChild(renderSimpleVulnBadges(dev.vulnerabilities));
-    }
-
-    grid.appendChild(card);
-  });
-
-  resultsArea.appendChild(grid);
-  return resultsArea;
-}
-
-// Resume la detección de SO de un dispositivo (Device type / Running / OS details, o los
-// "guesses" más probables cuando no hay match exacto). Devuelve null si no hay nada que
-// mostrar (categoría no corrió -O, o Nmap no encontró ningún osmatch).
-function renderOsInfo(dev: CategoryDevice): HTMLElement | null {
-  const os = dev.os_info;
-  if (!os) return null;
-
   const wrap = document.createElement("div");
-  wrap.className = "hera-scan-os-info";
-
-  if (os.exact_match) {
-    const parts: string[] = [];
-    if (os.device_types.length > 0) parts.push(os.device_types.join(", "));
-    if (os.running) parts.push(os.running);
-    if (parts.length === 0 && os.details) parts.push(os.details);
-    if (parts.length === 0) return null;
-    wrap.innerHTML = `<span class="hera-scan-os-label">SO:</span> ${parts.join(" — ")}`;
-    if (os.details) wrap.title = os.details;
-  } else {
-    if (os.guesses.length === 0) return null;
-    const guessText = os.guesses
-      .map((g) => `${g.name ?? "?"} (${g.accuracy ?? "?"}%)`)
-      .join(", ");
-    wrap.innerHTML = `<span class="hera-scan-os-label">SO (sin match exacto):</span> ${guessText}`;
-  }
-
+  wrap.className = "resultados";
+  const total = devices.reduce((n, d) => n + d.vulnerabilities.length, 0);
+  wrap.innerHTML = `
+    <div class="res-cab">
+      <dl class="lecturas lecturas-compactas">
+        <div><dt>hosts</dt><dd>${devices.length}</dd></div>
+        <div><dt>puertos abiertos</dt><dd>${devices.reduce((n, d) => n + d.ports.length, 0)}</dd></div>
+        <div><dt>hallazgos</dt><dd>${total}</dd></div>
+        ${lastScanTime && lastScanTime.duracion_str !== "N/D" ? `<div><dt>duración</dt><dd>${esc(lastScanTime.duracion_str)}</dd></div>` : ""}
+      </dl>
+      <p class="res-nota">Marcas llenas: puertos abiertos. Círculos: filtrados por un firewall. Despliega un host para ver su ficha.</p>
+    </div>
+    <div class="filas">${devices
+      .map((d) => {
+        const est = estadoHost(d);
+        return `<details class="fila est-${est}">
+          <summary>
+            <span class="fila-est">${ESTADO_FORMA[est]}<span class="sr">${ESTADO_TEXTO[est]}</span></span>
+            <span class="fila-id"><span class="fila-ip">${esc(d.ip)}</span><span class="fila-nombre">${esc(d.device || "Sin nombre")}</span></span>
+            ${regla(d, cat.id === "admin")}
+            <span class="fila-n">${d.vulnerabilities.length ? `${d.vulnerabilities.length} ${d.vulnerabilities.length === 1 ? "hallazgo" : "hallazgos"}` : ""}</span>
+          </summary>
+          <div class="ficha">${ficha(cat, d)}</div>
+        </details>`;
+      })
+      .join("")}</div>`;
   return wrap;
-}
-
-// Puertos que respondieron "filtered" en vez de "open"/"closed" — probable firewall
-// bloqueando la respuesta. Se muestran en naranja, sin emoji, distintos al estilo de los
-// puertos abiertos.
-function renderFilteredPorts(dev: CategoryDevice): HTMLElement | null {
-  if (dev.filtered_ports.length === 0) return null;
-
-  const wrap = document.createElement("div");
-  wrap.className = "hera-scan-badges hera-scan-filtered-badges";
-  dev.filtered_services.forEach((srv) => {
-    const badge = document.createElement("span");
-    badge.className = "hera-scan-badge is-filtered";
-    badge.textContent = srv;
-    wrap.appendChild(badge);
-  });
-  return wrap;
-}
-
-// URLs "Location:" (SSDP/UPnP) capturadas por scripts NSE — suelen apuntar a un XML de
-// descripción del dispositivo (fabricante, modelo). Se listan como enlaces clicables.
-function renderLocationUrls(dev: CategoryDevice): HTMLElement | null {
-  if (dev.location_urls.length === 0) return null;
-
-  const wrap = document.createElement("div");
-  wrap.className = "hera-scan-location-urls";
-  dev.location_urls.forEach((url) => {
-    const link = document.createElement("a");
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.textContent = url;
-    wrap.appendChild(link);
-  });
-  return wrap;
-}
-
-function renderGenericBadges(dev: CategoryDevice): HTMLElement {
-  const wrap = document.createElement("div");
-  wrap.className = "hera-scan-badges";
-  if (dev.services.length === 0) {
-    wrap.innerHTML = `<span class="hera-scan-empty-note">Sin puertos abiertos detectados</span>`;
-    return wrap;
-  }
-  dev.ports.forEach((port, i) => {
-    const badge = document.createElement("span");
-    badge.className = "hera-scan-badge";
-    badge.textContent = dev.services[i] ?? `${port}`;
-    const detail = dev.service_details.find((d) => d.port === port && d.state === "open");
-    if (detail) {
-      const bits = [detail.product, detail.version, detail.extrainfo].filter(Boolean);
-      if (bits.length > 0) {
-        badge.title = bits.join(" ");
-      } else if (!detail.reconocido && detail.fingerprint) {
-        badge.title = "Servicio no reconocido — fingerprint disponible";
-      }
-    }
-    wrap.appendChild(badge);
-  });
-  return wrap;
-}
-
-function renderAdminPorts(dev: CategoryDevice): HTMLElement {
-  const wrap = document.createElement("div");
-  wrap.className = "hera-scan-badges";
-  if (dev.ports.length === 0) {
-    wrap.innerHTML = `<span class="hera-scan-empty-note">Sin puertos de gestión abiertos</span>`;
-    return wrap;
-  }
-  dev.ports.forEach((port) => {
-    const badge = document.createElement("span");
-    const standard = isAdminPortStandard(port);
-    badge.className = "hera-scan-badge" + (standard ? "" : " is-warning");
-    // Título de la página (http-title): dice QUÉ panel es, no solo que el puerto está abierto.
-    const title = dev.service_details.find((d) => d.port === port && d.state === "open" && d.title)?.title;
-    const base = title ? `${port}/${adminPortLabel(port)} "${title}"` : `${port}/${adminPortLabel(port)}`;
-    badge.textContent = standard ? base : `${base} (no estándar)`;
-    if (title) badge.title = title;
-    wrap.appendChild(badge);
-  });
-  return wrap;
-}
-
-function renderSimpleVulnBadges(vulns: Vulnerability[]): HTMLElement {
-  const wrap = document.createElement("div");
-  wrap.className = "hera-scan-badges";
-  wrap.style.marginTop = "8px";
-  vulns.slice(0, 4).forEach((v) => {
-    const badge = document.createElement("span");
-    badge.className = `hera-vuln-row-sev ${v.severity}`;
-    badge.title = v.output;
-    badge.textContent = v.cve_count ? `${v.id} (${v.cve_count})` : v.id;
-    wrap.appendChild(badge);
-  });
-  return wrap;
-}
-
-function renderVulnSplit(dev: CategoryDevice): HTMLElement {
-  // Si el dispositivo no tiene NINGÚN hallazgo (ni confirmado ni posible), no vale la pena
-  // ocupar espacio con dos bloques vacíos repitiendo "Ninguna" — se muestra una sola nota.
-  if (dev.vulnerabilities.length === 0 && dev.possible_vulnerabilities.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "hera-scan-empty-note";
-    empty.style.marginTop = "10px";
-    empty.textContent = "Sin hallazgos de vulnerabilidades en este dispositivo.";
-    return empty;
-  }
-
-  const wrap = document.createElement("div");
-  wrap.className = "hera-vuln-split";
-
-  const confirmadasBlock = document.createElement("div");
-  confirmadasBlock.className = "hera-vuln-block confirmadas";
-  confirmadasBlock.innerHTML = `<div class="hera-vuln-block-title">Confirmadas (${dev.vulnerabilities.length})</div>`;
-  if (dev.vulnerabilities.length === 0) {
-    confirmadasBlock.innerHTML += `<span class="hera-scan-empty-note">Ninguna</span>`;
-  } else {
-    dev.vulnerabilities.forEach((v) => {
-      const detalle = v.remediation ? `${v.output}\n\nSolución: ${v.remediation}` : v.output;
-      confirmadasBlock.appendChild(buildVulnRow(v.id, v.severity, v.sev_label, detalle, v.cve_count));
-    });
-  }
-
-  const posiblesBlock = document.createElement("div");
-  posiblesBlock.className = "hera-vuln-block posibles";
-  posiblesBlock.innerHTML = `<div class="hera-vuln-block-title">Posibles, sin confirmar (${dev.possible_vulnerabilities.length})</div>`;
-  if (dev.possible_vulnerabilities.length === 0) {
-    posiblesBlock.innerHTML += `<span class="hera-scan-empty-note">Ninguna</span>`;
-  } else {
-    dev.possible_vulnerabilities.forEach((v) => {
-      const row = buildVulnRow(v.id, "posible", "Sin confirmar", v.output);
-      posiblesBlock.appendChild(row);
-    });
-  }
-
-  wrap.appendChild(confirmadasBlock);
-  wrap.appendChild(posiblesBlock);
-  return wrap;
-}
-
-function buildVulnRow(id: string, sevClass: string, sevLabel: string, output: string, cveCount?: number): HTMLElement {
-  const row = document.createElement("div");
-  row.className = "hera-vuln-row";
-  row.title = output;
-  const title = document.createElement("span");
-  title.className = "hera-vuln-row-title";
-  title.textContent = cveCount ? `${id} (${cveCount})` : id;
-  const sev = document.createElement("span");
-  sev.className = `hera-vuln-row-sev ${sevClass}`;
-  sev.textContent = sevLabel;
-  row.appendChild(title);
-  row.appendChild(sev);
-  return row;
 }
