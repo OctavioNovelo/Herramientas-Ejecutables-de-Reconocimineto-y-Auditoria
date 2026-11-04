@@ -4,7 +4,7 @@
 // siempre como "generado por reglas" para no presentarlo como algo que no es.
 
 import type { Device } from "../api/heraApi";
-import { adminPortLabel } from "../utils/portLabels";
+import { ADMIN_PORT_LABELS } from "../utils/portLabels";
 
 export type Prioridad = "riesgo" | "alerta" | "info";
 
@@ -97,7 +97,7 @@ export function generarPlan(devices: Device[]): Plan {
     );
     if (hosts.length === 0) continue;
     const distintos = new Set(hosts.map((h) => h.ip)).size;
-    const puertos = [...new Set(hosts.map((h) => h.puerto))].map((p) => `${p} (${adminPortLabel(p as number)})`).join(", ");
+    const puertos = [...new Set(hosts.map((h) => h.puerto))].map((p) => (ADMIN_PORT_LABELS[p as number] ? `${p} ${ADMIN_PORT_LABELS[p as number]}` : `${p}`)).join(", ");
     acciones.push({
       id: `puerto-${regla.puertos.join("-")}`,
       prioridad: regla.prioridad,
