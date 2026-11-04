@@ -1,0 +1,17 @@
+{
+  "build": {
+    "beforeDevCommand": "npm run dev:demo"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "HERA (demo)",
+        "width": 1360,
+        "height": 860,
+        "minWidth": 1024,
+        "minHeight": 680,
+        "resizable": true
+      }
+    ]
+  }
+}
