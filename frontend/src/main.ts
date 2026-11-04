@@ -136,7 +136,7 @@ function pintarTitular(st: AppState) {
     <h1>${frase[est]}</h1>
     <p class="bajada">${
       hoy || semana
-        ? `${hoy ? `${hoy} ${hoy === 1 ? "cosa" : "cosas"} para hoy` : ""}${hoy && semana ? " y " : ""}${semana ? `${semana} para esta semana` : ""}. Empieza por la primera de la columna de la derecha.`
+        ? `${hoy ? `${hoy} ${hoy === 1 ? "cosa" : "cosas"} para hoy` : ""}${hoy && semana ? " y " : ""}${semana ? `${semana} para esta semana` : ""}. Empieza por la primera de “Qué hacer”.`
         : "No hay nada urgente. Repite el escaneo cuando conectes equipos nuevos."
     }</p>`;
 }

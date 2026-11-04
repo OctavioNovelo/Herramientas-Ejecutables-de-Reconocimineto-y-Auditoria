@@ -58,7 +58,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .nav button.is-activo { color: var(--tinta); border-bottom-color: var(--tinta); }
 .nav .es-futuro { color: var(--tinta-3); }
 .nav .es-futuro::after { content: "pronto"; margin-left: 6px; font: var(--t-xs) var(--mono); color: var(--tinta-3); }
-.control { display: flex; align-items: center; gap: 14px; }
+.control { display: flex; align-items: center; gap: 14px; margin-left: auto; }
 .btn-pri { background: var(--tinta); color: var(--hoja); padding: 10px 18px; font-weight: 600; }
 .btn-pri:hover { background: #000; }
 .btn-sec { border: 1px solid var(--tinta); padding: 9px 16px; }
