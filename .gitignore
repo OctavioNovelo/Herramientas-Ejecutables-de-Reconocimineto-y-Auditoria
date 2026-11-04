@@ -33,6 +33,9 @@ frontend/src-tauri/gen/schemas/
 # Variables de entorno y secretos
 .env
 .env.*
+# Excepción: modos de demostración de Vite (sin secretos, ver frontend/package.json → tauri:demo)
+!frontend/.env.demo
+!frontend/.env.demovacio
 
 # Editores y sistema operativo
 .vscode/

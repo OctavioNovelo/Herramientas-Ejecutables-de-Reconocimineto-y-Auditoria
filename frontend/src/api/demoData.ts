@@ -1,15 +1,19 @@
-// Datos de demostración para revisar la interfaz en un navegador (fuera de Tauri), con
-// `?demo` en la URL. NO se usan nunca dentro de la app nativa: allí todo viene de
-// utils/parser.py. La forma es exactamente la de DashboardData / CategoryResult.
+// Datos de demostración para revisar la interfaz sin escaneos reales. Se activan solo de
+// forma explícita: `?demo` en la URL (navegador) o `npm run tauri:demo` (app nativa, que
+// compila con VITE_HERA_DEMO=1). En `npm run tauri dev` normal todo viene de utils/parser.py
+// y nunca se mezclan datos inventados con datos reales. La forma es exactamente la de
+// DashboardData / CategoryResult.
 
 import type { CategoryDevice, DashboardData, CategoryResult, ScanStats } from "./heraApi";
 
+const DEMO_ENV = import.meta.env.VITE_HERA_DEMO as string | undefined;
+
 export const isDemoMode = (): boolean =>
-  typeof window !== "undefined" && new URLSearchParams(window.location.search).has("demo");
+  !!DEMO_ENV || (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("demo"));
 
 // `?demo=vacio` simula una instalación sin escaneos previos (primer arranque).
 export const isDemoEmpty = (): boolean =>
-  typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "vacio";
+  DEMO_ENV === "vacio" || (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "vacio");
 
 const sd = (port: number, service: string, extra: Partial<CategoryDevice["service_details"][number]> = {}) => ({
   port,
