@@ -11,10 +11,12 @@
   "app": {
     "windows": [
       {
-        "title": "HERA - Network Reconnaissance",
-        "width": 1200,
-        "height": 800,
-        "resizable": true
+        "title": "HERA",
+        "width": 1360,
+        "height": 860,
+        "resizable": true,
+        "minWidth": 1024,
+        "minHeight": 680
       }
     ],
     "security": {
