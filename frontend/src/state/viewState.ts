@@ -14,7 +14,7 @@ export type ViewName = "dashboard" | "mapear" | "detectar" | "vulnerar";
 // 'group' determina en qué pestaña del menú horizontal aparece cada categoría:
 //   - "mapear": reconocimiento de red (descubrir dispositivos, puertos, servicios)
 //   - "detectar": categorías enfocadas específicamente en encontrar vulnerabilidades
-// Por ahora solo "Vulnerabilidades" está en el grupo "detectar" — el resto (incluido
+// En "detectar" están Vulnerabilidades (Nuclei) y Seguridad TLS (testssl); el resto (incluido
 // Full Pack, que combina varias técnicas pero se mantiene como la opción "hazlo todo"
 // de un clic) queda en "mapear". Esta separación es solo de PRESENTACIÓN: el componente
 // ScanView es el mismo para ambas pestañas, filtra qué chips mostrar según 'group'.
@@ -28,9 +28,14 @@ export interface ScanCategory {
   supportsEvasion?: boolean;
 }
 
+// Categorías cuyo resultado es una lista de hallazgos y se muestran con la vista de
+// vulnerabilidades (Confirmadas/Posibles). Mismo conjunto que VISTA_HALLAZGOS en frontend/option.py.
+export const VULN_VIEW_IDS = new Set(["vuln", "tls"]);
+
 export const SCAN_CATEGORIES: ScanCategory[] = [
   { id: "rapido", label: "Escaneo rápido", file_base: "escaneo_rapido", group: "mapear" },
   { id: "vuln", label: "Vulnerabilidades", file_base: "vulnerabilidades", group: "detectar" },
+  { id: "tls", label: "Seguridad TLS", file_base: "seguridad_tls", group: "detectar" },
   // NOTA: tools/nmap.py::dispositivos_ocultos() corre en 2 etapas; el sondeo intermedio se
   // guarda como "sondeo_ocultos" y el resultado final (el que se muestra) como "dispositivos_ocultos".
   { id: "ocultos", label: "Dispositivos ocultos", file_base: "dispositivos_ocultos", group: "mapear", supportsEvasion: true },

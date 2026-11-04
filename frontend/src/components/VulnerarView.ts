@@ -1,6 +1,6 @@
 // Placeholder de la pestaña "Vulnerar" (explotación/pentesting). Según el README raíz,
 // esta categoría de herramientas todavía no está implementada — solo existe el escaneo de
-// reconocimiento (Mapear) y detección de vulnerabilidades vía Nmap (Detectar). Este componente
+// reconocimiento (Mapear) y detección de vulnerabilidades (Detectar). Este componente
 // se reemplaza cuando la herramienta de explotación esté lista; hasta entonces, muestra un
 // estado "próximamente" honesto en vez de una pestaña vacía sin explicación.
 
@@ -20,7 +20,7 @@ export class VulnerarView {
       <h2>Próximamente</h2>
       <p>
         Las herramientas de explotación y pentesting todavía están en desarrollo.
-        Por ahora, la detección de vulnerabilidades vía Nmap está disponible en la
+        Por ahora, la detección de vulnerabilidades está disponible en la
         pestaña <strong>Detectar</strong>.
       </p>
     `;

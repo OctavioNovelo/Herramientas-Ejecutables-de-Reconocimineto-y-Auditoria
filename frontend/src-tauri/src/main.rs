@@ -221,18 +221,19 @@ fn obtener_archivos_resultados() -> HashSet<PathBuf> {
 
     let os_folder = get_os_folder();
 
-    let nmap_dir = root
-        .join("utils")
-        .join("Resultados")
-        .join(os_folder)
-        .join("Nmap");
+    // Resultados de TODAS las herramientas: utils/Resultados/<os>/{Nmap,Nuclei,Testssl}/.
+    let resultados_dir = root.join("utils").join("Resultados").join(os_folder);
 
-    if let Ok(entries) = std::fs::read_dir(nmap_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
+    if let Ok(herramientas) = std::fs::read_dir(resultados_dir) {
+        for herramienta in herramientas.flatten() {
+            if let Ok(entries) = std::fs::read_dir(herramienta.path()) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
 
-            if path.is_file() {
-                archivos.insert(path);
+                    if path.is_file() {
+                        archivos.insert(path);
+                    }
+                }
             }
         }
     }
@@ -279,6 +280,24 @@ fn eliminar_archivos_nuevos(state: &ScanProcessState) {
     }
 }
 
+fn ruta_stderr_escaneo() -> PathBuf {
+    std::env::temp_dir().join("hera_escaneo_stderr.log")
+}
+
+// Mensaje que imprime el script de Python al fallar ("Error durante la ejecución del escaneo
+// HERA: ..."); si no está (ej. Python no arrancó), la última línea de stderr.
+fn mensaje_error_escaneo() -> String {
+    let stderr = std::fs::read_to_string(ruta_stderr_escaneo()).unwrap_or_default();
+    let lineas: Vec<&str> = stderr.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    lineas
+        .iter()
+        .rev()
+        .find_map(|l| l.split_once("Error durante la ejecución del escaneo HERA:"))
+        .map(|(_, msg)| msg.trim().to_string())
+        .or_else(|| lineas.last().map(|l| l.to_string()))
+        .unwrap_or_else(|| "El escaneo terminó con error.".to_string())
+}
+
 //Agregado
 // Ejecuta un proceso de Python de forma cancelable.
 // El proceso se guarda en ScanProcessState para que otro comando Tauri
@@ -310,8 +329,12 @@ fn ejecutar_proceso_escaneo(
 
         state.cancelled.store(false, Ordering::SeqCst);
 
+        // stderr va a un archivo (no a un pipe: un escaneo largo llenaría el buffer y se
+        // bloquearía) para poder mostrar en la interfaz por qué falló el escaneo.
+        let stderr_file = std::fs::File::create(ruta_stderr_escaneo())
+            .map_err(|e| format!("No se pudo crear el registro de errores del escaneo: {}", e))?;
         command.stdout(Stdio::null());
-        command.stderr(Stdio::null());
+        command.stderr(Stdio::from(stderr_file));
 
         let child = command
             .spawn()
@@ -354,7 +377,13 @@ fn ejecutar_proceso_escaneo(
                 return Ok(false);
             }
 
-            return Ok(exito);
+            if !exito {
+                // Igual que el CLI: un escaneo que falló no deja archivos a medias.
+                eliminar_archivos_nuevos(state);
+                return Err(mensaje_error_escaneo());
+            }
+
+            return Ok(true);
         }
 
         std::thread::sleep(Duration::from_millis(100));
@@ -439,13 +468,16 @@ async fn trigger_nmap_scan(
 
     let funcion_python = match scan_type.as_str() {
         "rapido" => "nmap.escaneo_rapido(context, target=target)",
-        "vuln" => "nmap.vulnerabilidades(context, target=target)",
         // Solo 'ocultos' y 'full' aceptan evasión (opcional, apagada por defecto — ver
         // tools/nmap.py::_args_evasion). Las demás categorías ignoran el parámetro.
         "ocultos" => "nmap.dispositivos_ocultos(context, target=target, evasion=evasion)",
         "admin" => "nmap.admin_audit(context, target=target)",
         "id" => "nmap.indentificar_dispositivos(context, target=target)",
         "full" | "full_pack" => "nmap.full_pack(context, target=target, evasion=evasion)",
+        // Detectar: Nmap descubre los servicios y Nuclei/testssl los revisan (ver tools/nuclei.py,
+        // tools/testssl.py). Usan el mismo 'context': trae los binarios de todas las herramientas.
+        "vuln" => "nuclei.vulnerabilidades(context, target=target)",
+        "tls" => "testssl.seguridad_tls(context, target=target)",
         "custom" => {
             return Err(
                 "El escaneo personalizado usa un comando distinto (trigger_custom_scan), no trigger_nmap_scan.".to_string()
@@ -467,6 +499,8 @@ import sys
 sys.path.append('.')
 import core.executor as ejec
 import tools.nmap as nmap
+import tools.nuclei as nuclei
+import tools.testssl as testssl
 from utils.system_info import obtener_sistema_operativo, obtener_carpeta_os
 
 try:
@@ -514,8 +548,8 @@ except Exception as e:
     Ok(format!("El escaneo '{}' se completó correctamente y los datos han sido guardados.", scan_type))
 }
 
-// Comando para la pestaña "Escaneo": busca el archivo XML más reciente de una categoría
-// específica (mismo criterio que buscar_escaneos en utils/parser.py) y devuelve sus resultados
+// Comando para la pestaña "Escaneo": busca el resultado más reciente de una categoría
+// específica (mismo criterio que buscar_resultados en utils/parser.py) y devuelve sus resultados
 // ya procesados (dispositivos agrupados + vulnerabilidades confirmadas/posibles).
 #[tauri::command]
 fn get_category_results(file_base: String) -> Result<serde_json::Value, String> {
@@ -526,16 +560,15 @@ fn get_category_results(file_base: String) -> Result<serde_json::Value, String> 
 import sys, json
 sys.path.append('.')
 try:
-    from pathlib import Path
     from utils.system_info import obtener_sistema_operativo, obtener_carpeta_os
-    from utils.parser import buscar_escaneos, obtener_resultados_categoria
+    from utils.parser import buscar_resultados, obtener_resultados_categoria
 
     os_name = obtener_sistema_operativo()
     os_folder = obtener_carpeta_os(os_name)
     file_base = sys.argv[1]
 
-    resultados_dir = Path('.') / 'utils' / 'Resultados' / os_folder / 'Nmap'
-    archivos = buscar_escaneos(resultados_dir, file_base, extension='.xml')
+    # Busca en las carpetas de todas las herramientas (Nmap, Nuclei, Testssl).
+    archivos = buscar_resultados(os_folder, file_base)
 
     if not archivos:
         print(json.dumps({"devices": [], "found": False}))
@@ -664,6 +697,11 @@ fn main() {
     {
         if std::env::var("WEBKIT_DISABLE_COMPOSITING_MODE").is_err() {
             std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+        }
+        // WebKitGTK + Wayland + NVIDIA: el renderer DMABUF cierra la ventana al abrir
+        // ("Error 71 (Protocol error) dispatching to Wayland display").
+        if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         }
     }
 

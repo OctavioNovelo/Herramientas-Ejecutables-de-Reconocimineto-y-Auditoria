@@ -166,6 +166,8 @@ def _linea_vulnerabilidad(v, clave_sev=None, etiqueta_sev=None):
     print(f"      {severidad(f'[{etiqueta_sev}]', clave_sev)} {nombre}{puerto}")
     if v.get("output"):
         print(f"          {recortar(v['output'], ANCHO - 10)}")
+    if v.get("remediation"):
+        print(f"          Solución: {recortar(v['remediation'], ANCHO - 20)}")
 
 
 # --- Resultados por categoría (equivalente a ScanView.ts::renderDevices) ---
@@ -194,7 +196,8 @@ def _ficha_dispositivo(cat_id, dev):
         _campo("Latencia", f"{dev['latency']} ms")
 
     # Mismas reglas de qué mostrar en cada categoría que ScanView.ts.
-    if cat_id != "vuln":
+    vista_hallazgos = cat_id in option.VISTA_HALLAZGOS
+    if not vista_hallazgos:
         _campo_so(dev.get("os_info"))
 
     if cat_id == "admin":
@@ -207,10 +210,10 @@ def _ficha_dispositivo(cat_id, dev):
     if dev["filtered_services"]:
         _campo("Filtrados", ", ".join(dev["filtered_services"]) + "  (probable firewall)")
 
-    if cat_id != "vuln":
+    if not vista_hallazgos:
         _campo_lista("UPnP", dev["location_urls"])
 
-    if cat_id == "vuln":
+    if vista_hallazgos:
         _vulnerabilidades_divididas(dev)
     elif dev["vulnerabilities"]:
         _campo("Vulns", "")

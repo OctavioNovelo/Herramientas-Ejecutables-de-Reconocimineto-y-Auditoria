@@ -7,7 +7,7 @@
 // (protocolo, timing, puertos) antes de poder lanzarse, igual que el formulario del CLI
 // (frontend/CLI.py::formulario_personalizado). Ambos terminan en tools/nmap.py::personalizado.
 
-import { viewState, ScanCategory } from "../state/viewState";
+import { viewState, ScanCategory, VULN_VIEW_IDS } from "../state/viewState";
 import { scanState } from "../state/scanState";
 import { heraApi, CategoryDevice, Vulnerability, PossibleVulnerability, CustomScanParams, ScanTimeInfo } from "../api/heraApi";
 import { adminPortLabel, isAdminPortStandard } from "../utils/portLabels";
@@ -422,7 +422,7 @@ export class ScanView {
   private showCustomFormError(message: string) {
     const el = document.getElementById("hera-custom-form-error");
     if (el) {
-      el.textContent = `⚠ ${message}`;
+      el.textContent = `${message}`;
       el.style.display = "block";
     }
   }
@@ -509,7 +509,7 @@ export class ScanView {
       }
       this.renderDevices(cat, result.devices);
     } catch (err: any) {
-      this.resultsArea.innerHTML = `<p class="hera-scan-empty-note">⚠ Error al leer resultados: ${err?.message ?? err}</p>`;
+      this.resultsArea.innerHTML = `<p class="hera-scan-empty-note"><Error al leer resultados: ${err?.message ?? err}</p>`;
     }
   }
 
@@ -521,14 +521,15 @@ export class ScanView {
     if (this.lastScanTime && this.lastScanTime.duracion_str !== "N/D") {
       const timeNote = document.createElement("p");
       timeNote.className = "hera-scan-time-note";
-      timeNote.textContent = `⏱ Duración del escaneo: ${this.lastScanTime.duracion_str}`;
+      timeNote.textContent = `Duración del escaneo: ${this.lastScanTime.duracion_str}`;
       this.resultsArea.appendChild(timeNote);
     }
 
     const grid = document.createElement("div");
     // La categoría 'vuln' necesita más ancho por card: cada una se divide en 2 columnas
     // (Confirmadas/Posibles) que no caben cómodamente en el ancho mínimo genérico de 300px.
-    grid.className = "hera-scan-devices-grid" + (cat.id === "vuln" ? " is-vuln-grid" : "");
+    const isVulnView = VULN_VIEW_IDS.has(cat.id);
+    grid.className = "hera-scan-devices-grid" + (isVulnView ? " is-vuln-grid" : "");
 
     devices.forEach((dev) => {
       const card = document.createElement("div");
@@ -543,8 +544,8 @@ export class ScanView {
       card.appendChild(header);
 
       // Detección de SO (si la categoría corrió -O y Nmap logró algo). Se muestra para
-      // cualquier categoría excepto 'vuln', que mantiene su presentación propia.
-      if (cat.id !== "vuln") {
+      // cualquier categoría excepto las de hallazgos (VULN_VIEW_IDS), que tienen su presentación propia.
+      if (!isVulnView) {
         const osBlock = this.renderOsInfo(dev);
         if (osBlock) card.appendChild(osBlock);
       }
@@ -560,12 +561,12 @@ export class ScanView {
       if (filteredBlock) card.appendChild(filteredBlock);
 
       // URLs "Location:" (SSDP/UPnP) — pistas de identificación del dispositivo.
-      if (cat.id !== "vuln") {
+      if (!isVulnView) {
         const locBlock = this.renderLocationUrls(dev);
         if (locBlock) card.appendChild(locBlock);
       }
 
-      if (cat.id === "vuln") {
+      if (isVulnView) {
         card.appendChild(this.renderVulnSplit(dev));
       } else if (dev.vulnerabilities.length > 0) {
         // Otras categorías (ej. full_pack) también pueden traer hallazgos confirmados:
@@ -682,7 +683,7 @@ export class ScanView {
       // Título de la página (http-title): dice QUÉ panel es, no solo que el puerto está abierto.
       const title = dev.service_details.find((d) => d.port === port && d.state === "open" && d.title)?.title;
       const base = title ? `${port}/${adminPortLabel(port)} "${title}"` : `${port}/${adminPortLabel(port)}`;
-      badge.textContent = standard ? base : `${base} ⚠ no estándar`;
+      badge.textContent = standard ? base : `${base} (no estándar)`;
       if (title) badge.title = title;
       wrap.appendChild(badge);
     });
@@ -719,18 +720,19 @@ export class ScanView {
 
     const confirmadasBlock = document.createElement("div");
     confirmadasBlock.className = "hera-vuln-block confirmadas";
-    confirmadasBlock.innerHTML = `<div class="hera-vuln-block-title">⚠ CONFIRMADAS (${dev.vulnerabilities.length})</div>`;
+    confirmadasBlock.innerHTML = `<div class="hera-vuln-block-title">CONFIRMADAS (${dev.vulnerabilities.length})</div>`;
     if (dev.vulnerabilities.length === 0) {
       confirmadasBlock.innerHTML += `<span class="hera-scan-empty-note">Ninguna</span>`;
     } else {
       dev.vulnerabilities.forEach((v) => {
-        confirmadasBlock.appendChild(this.buildVulnRow(v.id, v.severity, v.sev_label, v.output, v.cve_count));
+        const detalle = v.remediation ? `${v.output}\n\nSolución: ${v.remediation}` : v.output;
+        confirmadasBlock.appendChild(this.buildVulnRow(v.id, v.severity, v.sev_label, detalle, v.cve_count));
       });
     }
 
     const posiblesBlock = document.createElement("div");
     posiblesBlock.className = "hera-vuln-block posibles";
-    posiblesBlock.innerHTML = `<div class="hera-vuln-block-title">? POSIBLES — SIN CONFIRMAR (${dev.possible_vulnerabilities.length})</div>`;
+    posiblesBlock.innerHTML = `<div class="hera-vuln-block-title">POSIBLES — SIN CONFIRMAR (${dev.possible_vulnerabilities.length})</div>`;
     if (dev.possible_vulnerabilities.length === 0) {
       posiblesBlock.innerHTML += `<span class="hera-scan-empty-note">Ninguna</span>`;
     } else {

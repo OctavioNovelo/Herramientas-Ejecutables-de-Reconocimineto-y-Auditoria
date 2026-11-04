@@ -7,7 +7,7 @@ Clasifica los resultados de los scripts NSE de Nmap en:
   - "posible": Nmap buscó pero no pudo confirmar (librería 'vulns' con state=UNKNOWN).
   - None: puramente informativo (banner grabbing, certificados, versiones, etc.) — se ignora.
 
-Esta es la ÚNICA fuente de verdad para esta lógica. Tanto el CLI como la interfaz nativa
+Esta es la ÚNICA fuente de verdad para esta lógica (Nmap NSE, Nuclei y testssl, ver abajo). Tanto el CLI como la interfaz nativa
 (vía utils/parser.py, invocado directamente o a través de los comandos de Tauri) pasan por aquí.
 No debe existir una segunda implementación de este criterio en TypeScript.
 """
@@ -190,3 +190,99 @@ def clasificar_script(script_elem, ip, puerto):
     # --- Cualquier otro script (http-title, ssl-cert, dns-nsid, fingerprint-strings, etc.):
     # es puramente informativo, no representa una vulnerabilidad. ---
     return None, []
+
+# --- Nuclei (tools/nuclei.py) ---
+# Nuclei verifica cada hallazgo contra la respuesta real del servicio (matchers de la plantilla),
+# así que todo lo que reporta con severidad low o mayor se considera confirmado. 'info' y 'unknown'
+# ya se excluyen al ejecutar (-es info,unknown); si llegaran, se ignoran aquí también.
+
+_SEVERIDAD_ETIQUETA = {"critical": "Crítica", "high": "Alta", "medium": "Media", "low": "Baja"}
+
+
+def clasificar_nuclei(registro):
+    """
+    Recibe un dict de una línea del JSONL de Nuclei y devuelve una entrada con el mismo formato
+    que clasificar_script() (más 'remediation' y 'references'), o None si no es un hallazgo.
+    """
+    info = registro.get("info") or {}
+    severity = (info.get("severity") or "").lower()
+    if severity not in _SEVERIDAD_ETIQUETA:
+        return None
+
+    clasificacion = info.get("classification") or {}
+    cves = [c for c in (clasificacion.get("cve-id") or []) if c]
+    descripcion = " ".join((info.get("description") or "").split())
+    detalle = registro.get("matched-at") or ""
+    if registro.get("matcher-name"):
+        detalle += f" [{registro['matcher-name']}]"
+
+    return {
+        "id": info.get("name") or registro.get("template-id", "nuclei"),
+        "template_id": registro.get("template-id"),
+        "output": (f"{', '.join(c.upper() for c in cves)} — " if cves else "") + (descripcion[:300] or detalle),
+        "matched_at": detalle,
+        "severity": severity,
+        "sev_label": _SEVERIDAD_ETIQUETA[severity],
+        "device": registro.get("ip") or registro.get("host"),
+        "port": str(registro.get("port") or "") or None,
+        "status": "confirmada",
+        "remediation": " ".join((info.get("remediation") or "").split()) or None,
+        "references": [r for r in (info.get("reference") or []) if r][:3],
+        "group_key": None,
+        "group_label": None,
+    }
+
+
+# --- testssl.sh (tools/testssl.py) ---
+# testssl prueba la configuración TLS en vivo (protocolos, cifrados, vulnerabilidades como
+# Heartbleed/ROBOT, certificado), así que sus hallazgos LOW+ son confirmados. OK/INFO no son
+# hallazgos; WARN/FATAL/DEBUG son avisos del propio escaneo.
+
+_SEVERIDAD_TESTSSL = {"CRITICAL": "critical", "HIGH": "high", "MEDIUM": "medium", "LOW": "low"}
+
+# En una red doméstica casi todos los routers, impresoras, NAS y cámaras sirven su panel con un
+# certificado autofirmado. testssl lo reporta como CRÍTICO (cadena de confianza) más varios ALTO
+# (sin SAN, no coincide con la URI, sin CRL/OCSP), lo que dejaría el dashboard siempre en CRÍTICO
+# por algo esperable. Se reclasifican a Baja con una nota; los problemas reales de TLS (protocolos
+# viejos, cifrados débiles, vulnerabilidades) conservan su severidad.
+CERTIFICADO_ESPERABLE_EN_LAN = {
+    "cert_chain_of_trust", "cert_trust", "cert_subjectAltName", "cert_revocation",
+    "cert_caIssuers", "cert_ocspURL", "cert_crlDistributionPoints",
+}
+NOTA_CERTIFICADO_LAN = "normal en equipos domésticos con certificado autofirmado"
+
+# Duplicados o puramente informativos (cert_notAfter es la fecha; el estado ya va en cert_expirationStatus).
+TESTSSL_IGNORADOS = {"cert_notAfter", "cert_notBefore", "engine_problem"}
+
+
+def clasificar_testssl(registro):
+    """
+    Recibe un dict del JSON plano de testssl (--jsonfile) y devuelve una entrada con el mismo
+    formato que clasificar_script(), o None si no es un hallazgo.
+    """
+    hallazgo_id = registro.get("id") or ""
+    severity = _SEVERIDAD_TESTSSL.get((registro.get("severity") or "").upper())
+    if severity is None or hallazgo_id in TESTSSL_IGNORADOS:
+        return None
+
+    output = (registro.get("finding") or "").strip()
+    if registro.get("cve"):
+        output = f"{registro['cve']} — {output}"
+    if hallazgo_id in CERTIFICADO_ESPERABLE_EN_LAN:
+        severity = "low"
+        output = f"{output} ({NOTA_CERTIFICADO_LAN})"
+
+    # 'ip' viene como "hostname/ip"; nos quedamos con la IP para cruzarla con el sondeo de Nmap.
+    ip = (registro.get("ip") or "").split("/")[-1] or None
+    return {
+        "id": f"TLS: {hallazgo_id}",
+        "output": output[:300],
+        "severity": severity,
+        "sev_label": _SEVERIDAD_ETIQUETA[severity],
+        "device": ip,
+        "port": str(registro.get("port") or "") or None,
+        "status": "confirmada",
+        "remediation": None,
+        "group_key": None,
+        "group_label": None,
+    }

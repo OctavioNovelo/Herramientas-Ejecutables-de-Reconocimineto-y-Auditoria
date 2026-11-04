@@ -5,17 +5,20 @@ from pathlib import Path
 from utils import elevation
 from utils.parser import FORMATO_FECHA_ARCHIVO
 
-nmap_bin = {
-    'linux':   {'bin_name': 'nmap'},
-    'windows': {'bin_name': 'nmap.exe'},
-    'macos':   {'bin_name': 'nmap'}
-}
+# Binario por carpeta de SO (ver core/executor.py::HERRAMIENTAS).
+BINARIOS = {"Linux": "nmap", "Windows": "nmap.exe", "macos": "nmap"}
 
 # Nombre de salida de cada escaneo: <categoria>_<fecha>_<hora>, ej. escaneo_rapido_2026-11-01_18-30-05.
 # Las tres salidas de Nmap (.xml, _normal.txt, _grepable.txt) comparten este prefijo.
 # El formato vive en utils/parser.py (FORMATO_FECHA_ARCHIVO), que es quien los vuelve a leer.
-def ruta_con_fecha(base_path):
-    return f"{base_path}_{datetime.now().strftime(FORMATO_FECHA_ARCHIVO)}"
+# 'marca' permite que varios archivos de un mismo escaneo compartan fecha (ej. el sondeo de
+# Nmap y el resultado de Nuclei), que es como utils/parser.py los vuelve a emparejar.
+def marca_de_tiempo():
+    return datetime.now().strftime(FORMATO_FECHA_ARCHIVO)
+
+
+def ruta_con_fecha(base_path, marca=None):
+    return f"{base_path}_{marca or marca_de_tiempo()}"
 
 
 def _args_evasion(tipo_escaneo="syn"):
@@ -73,22 +76,6 @@ def escaneo_rapido(context, target=None):
     _escribir_hosts_file(hosts_file, context, target)
 
     args = [str(context["bin_path"]), "-sS", "-F", "-n", "-T4", "--max-retries", "3", "--reason",
-            "-iL", str(hosts_file),
-            "-oN", f"{result_path}_normal.txt",
-            "-oG", f"{result_path}_grepable.txt",
-            "-oX", f"{result_path}.xml"]
-    elevation.ejecutar_elevado(args)
-
-# Pendiente por revisar si es util la neta.
-def vulnerabilidades(context, timing_level=3, target=None):
-    base_path = Path(__file__).parent.parent
-    hosts_file = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "hosts.txt"
-    result_path_base = base_path / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "vulnerabilidades"
-    result_path = ruta_con_fecha(result_path_base)
-
-    _escribir_hosts_file(hosts_file, context, target)
-
-    args = [str(context["bin_path"]), "-sV", "--script", "vuln", "-Pn", "-n", f"-T{timing_level}", "-O",
             "-iL", str(hosts_file),
             "-oN", f"{result_path}_normal.txt",
             "-oG", f"{result_path}_grepable.txt",
@@ -384,6 +371,28 @@ def indentificar_dispositivos(context, timing_level=4, target=None):
             "-oX", f"{result_path}.xml"]
 
     elevation.ejecutar_elevado(args)
+
+
+def sondeo_servicios(context, ruta_xml, target=None, scripts=None):
+    """
+    Descubre hosts vivos y sus servicios (top 1000 TCP + versión) y guarda el XML en 'ruta_xml'.
+    No es una categoría propia: es la primera etapa de los flujos de Detectar que usan otras
+    herramientas (tools/nuclei.py, tools/testssl.py), que solo atacan los servicios que esto
+    encuentra en vez de barrer la red a ciegas. --version-light basta para distinguir web/TLS
+    y es bastante más rápido que -sV completo.
+
+    Sin -Pn: solo se escanean los hosts que responden al descubrimiento (ARP en la red local),
+    en vez de esperar el timeout de cada IP vacía. 'scripts': scripts NSE extra (ej.
+    "smb-vuln-ms17-010"); cada uno solo corre en los hosts con el puerto que le corresponde.
+    """
+    hosts_file = Path(__file__).parent.parent / "utils" / "Resultados" / context["os_folder"] / "Nmap" / "hosts.txt"
+    _escribir_hosts_file(hosts_file, context, target)
+    Path(ruta_xml).parent.mkdir(parents=True, exist_ok=True)
+    elevation.ejecutar_elevado([
+        str(context["binarios"]["Nmap"]), "-sS", "-sV", "--version-light", "--top-ports", "1000",
+        "-n", "-T4", *(["--script", scripts] if scripts else []),
+        "-iL", str(hosts_file), "-oX", str(ruta_xml),
+    ])
 
 
 def validar_parametros_personalizado(protocol, tcp_type, timing, port_mode, port_value):

@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 
 import tools.nmap as nmap
+import tools.nuclei as nuclei
+import tools.testssl as testssl
 
 
 @dataclass(frozen=True)
@@ -40,9 +42,15 @@ CATEGORIAS = [
     ),
     Categoria(
         "vuln", "Vulnerabilidades", "vulnerabilidades", "detectar",
-        "Detecta fallos de seguridad, servicios mal configurados y versiones inseguras.\n"
-        "Detección de versiones + scripts NSE 'vuln'. Puede tardar varios minutos.",
-        nmap.vulnerabilidades,
+        "Comprueba fallas reales (CVEs, paneles expuestos, malas configuraciones) contra cada servicio.\n"
+        "Nmap encuentra los servicios y Nuclei los verifica. Sin pruebas intrusivas ni de DoS.",
+        nuclei.vulnerabilidades,
+    ),
+    Categoria(
+        "tls", "Seguridad TLS", "seguridad_tls", "detectar",
+        "Revisa el cifrado de cada servicio con TLS/SSL usando testssl.sh: protocolos viejos,\n"
+        "cifrados débiles, certificado y fallas como Heartbleed. ~30 s por servicio.",
+        testssl.seguridad_tls,
     ),
     # Corre en 2 etapas: el sondeo intermedio se guarda como "sondeo_ocultos" y el resultado
     # final como "dispositivos_ocultos" (ver tools/nmap.py::dispositivos_ocultos).
@@ -80,6 +88,11 @@ CATEGORIAS = [
         admite_evasion=True,
     ),
 ]
+
+
+# Categorías cuyo resultado es una lista de hallazgos (confirmados/posibles) y no de puertos:
+# se muestran con la vista de vulnerabilidades, igual que en ScanView.ts (VULN_VIEW_IDS).
+VISTA_HALLAZGOS = {"vuln", "tls"}
 
 
 def categorias_de(grupo):

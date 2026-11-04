@@ -133,7 +133,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // A. Banner de error (solo se muestra si hubo un fallo real, no por falta de datos).
     // Visible en cualquier vista: un escaneo lanzado desde "Escaneo" también puede fallar.
     if (state.error) {
-      errorBanner.textContent = `⚠ ${state.error}`;
+      errorBanner.textContent = `${state.error}`;
       errorBanner.style.display = "block";
     } else {
       errorBanner.style.display = "none";

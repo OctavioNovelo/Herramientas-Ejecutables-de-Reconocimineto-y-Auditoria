@@ -186,7 +186,7 @@ export class NetworkChart extends Card {
           <span style="font-size:0.65rem;opacity:0.6;">
             ${hasData
               ? `* Eje X: últimos octetos de IP. Hover para detalles.`
-              : "⬤ Placeholder — esperando datos reales de escaneo"}
+              : "Placeholder — esperando datos reales de escaneo"}
           </span>
           <div class="hera-chart-legend-item">
             <div class="hera-chart-legend-indicator${hasData ? " line" : " placeholder-line"}"></div>

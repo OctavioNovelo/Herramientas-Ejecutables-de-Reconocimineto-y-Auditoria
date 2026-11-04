@@ -1,3 +1,4 @@
+import json
 import re
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -9,6 +10,19 @@ from utils import vuln_classification
 # que si cambia aquí cambia para todos. Sin ':' en la hora porque Windows no lo permite en nombres.
 FORMATO_FECHA_ARCHIVO = "%Y-%m-%d_%H-%M-%S"
 _RE_FECHA_ARCHIVO = r"\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}"
+
+# Extensión del resultado principal de cada herramienta, que se guarda en
+# utils/Resultados/<carpeta_os>/<Herramienta>/ (ver tools/<herramienta>.py):
+#   Nmap   -> <categoria>_<fecha>.xml
+#   Nuclei -> vulnerabilidades_<fecha>.jsonl     + su sondeo de Nmap sondeo_nuclei_<fecha>.xml
+#   Testssl-> seguridad_tls_<fecha>.json         + su sondeo de Nmap sondeo_tls_<fecha>.xml
+# Nuclei y testssl solo reportan hallazgos; el sondeo (misma fecha) aporta los dispositivos.
+FORMATOS_RESULTADO = {"Nmap": ".xml", "Nuclei": ".jsonl", "Testssl": ".json"}
+SONDEO_POR_EXTENSION = {".jsonl": "sondeo_nuclei", ".json": "sondeo_tls"}
+
+
+def directorio_resultados(os_folder, herramienta="Nmap"):
+    return Path(__file__).parent.parent / "utils" / "Resultados" / os_folder / herramienta
 
 
 def buscar_en_gnmap(ruta_gnmap, termino_busqueda):
@@ -342,14 +356,28 @@ def generar_tabla_xml(ruta_xml):
             }
 
             for script in port.findall('script'):
-                categoria, entradas = vuln_classification.clasificar_script(script, ip, puerto_id)
-                if categoria == "confirmada":
-                    fila['Vulnerabilidades'].extend(entradas)
-                elif categoria == "posible":
-                    fila['PosiblesVulnerabilidades'].extend(entradas)
+                _agregar_hallazgo(fila, script, ip, puerto_id)
 
             filas_tabla.append(fila)
+
+        # Scripts a nivel de host (<hostscript>): los smb-vuln-* (ej. smb-vuln-ms17-010) reportan
+        # aquí y no en un puerto. Se cuelgan del puerto SMB (445, si no 139) o del primero del host.
+        filas_host = [f for f in filas_tabla if f['IP'] == ip]
+        destino = next((f for f in filas_host if f['Puerto'] == '445'), None) \
+            or next((f for f in filas_host if f['Puerto'] == '139'), None) \
+            or (filas_host[0] if filas_host else None)
+        if destino is not None:
+            for script in host.findall('hostscript/script'):
+                _agregar_hallazgo(destino, script, ip, destino['Puerto'])
     return filas_tabla
+
+
+def _agregar_hallazgo(fila, script, ip, puerto):
+    categoria, entradas = vuln_classification.clasificar_script(script, ip, puerto)
+    if categoria == "confirmada":
+        fila['Vulnerabilidades'].extend(entradas)
+    elif categoria == "posible":
+        fila['PosiblesVulnerabilidades'].extend(entradas)
 
 
 def buscar_escaneos(directorio, base_name, extension=".xml"):
@@ -376,16 +404,159 @@ def fecha_de_escaneo(ruta):
     return datetime.strptime(m.group(0), FORMATO_FECHA_ARCHIVO) if m else None
 
 
-def escaneo_finalizado(ruta_xml):
+def buscar_resultados(os_folder, base_name):
     """
-    True si el XML corresponde a un escaneo que Nmap terminó (trae <runstats><finished>).
-    Un escaneo interrumpido (Ctrl+C, proceso terminado) deja el XML truncado o sin ese
-    bloque, así que esto permite distinguir resultados completos de restos parciales.
+    Resultados principales de una categoría, de cualquier herramienta, del más reciente al más
+    antiguo. Es lo que usan el CLI y la GUI (get_category_results) para encontrar los archivos de
+    una categoría sin tener que saber con qué herramienta se generó.
     """
+    archivos = []
+    for herramienta, extension in FORMATOS_RESULTADO.items():
+        archivos.extend(buscar_escaneos(directorio_resultados(os_folder, herramienta), base_name, extension))
+    return sorted(archivos, key=lambda r: Path(r).name, reverse=True)
+
+
+def escaneo_finalizado(ruta):
+    """
+    True si el archivo corresponde a un escaneo terminado. Un escaneo interrumpido (Ctrl+C,
+    proceso terminado) deja el archivo truncado, así que esto permite distinguir resultados
+    completos de restos parciales:
+      - .xml de Nmap: debe traer <runstats><finished>.
+      - .jsonl (Nuclei) / .json (testssl): HERA los escribe al final, de una vez; basta con
+        que existan y sean JSON válido (un .jsonl vacío = escaneo terminado sin hallazgos).
+    """
+    ruta = Path(ruta)
     try:
-        return ET.parse(ruta_xml).getroot().find('runstats/finished') is not None
+        if ruta.suffix == ".xml":
+            return ET.parse(ruta).getroot().find('runstats/finished') is not None
+        if ruta.suffix == ".jsonl":
+            for linea in ruta.read_text().splitlines():
+                if linea.strip():
+                    json.loads(linea)
+            return True
+        if ruta.suffix == ".json":
+            return isinstance(json.loads(ruta.read_text()), list)
     except Exception:
         return False
+    return False
+
+
+def servicios_abiertos(ruta_xml):
+    """
+    Servicios TCP abiertos de un XML de Nmap, para alimentar a otras herramientas (tools/nuclei.py,
+    tools/testssl.py). Cada uno: {ip, port, service, tls, url}. 'url' solo existe para servicios
+    web (http:// o https:// según Nmap haya detectado TLS); 'tls' es True si el servicio va cifrado.
+    """
+    try:
+        root = ET.parse(ruta_xml).getroot()
+    except Exception:
+        return []
+
+    servicios = []
+    for host in root.findall('host'):
+        estado = host.find('status')
+        direccion = host.find("address[@addrtype='ipv4']")
+        if estado is None or estado.get('state') != 'up' or direccion is None:
+            continue
+        ip = direccion.get('addr')
+        for port in host.findall('ports/port'):
+            estado_puerto = port.find('state')
+            if port.get('protocol') != 'tcp' or estado_puerto is None or estado_puerto.get('state') != 'open':
+                continue
+            servicio_el = port.find('service')
+            nombre = (servicio_el.get('name') if servicio_el is not None else '') or ''
+            tunel = servicio_el.get('tunnel') if servicio_el is not None else None
+            tls = tunel == 'ssl' or nombre in _SERVICIOS_TLS
+            url = None
+            if nombre.startswith('http') or nombre in ('https', 'https-alt'):
+                esquema = 'https' if tls or nombre.startswith('https') else 'http'
+                url = f"{esquema}://{ip}:{port.get('portid')}"
+            servicios.append({'ip': ip, 'port': port.get('portid'), 'service': nombre, 'tls': tls, 'url': url})
+    return servicios
+
+
+# Servicios que Nmap nombra directamente por su versión cifrada (sin tunnel="ssl").
+_SERVICIOS_TLS = {'https', 'https-alt', 'imaps', 'pop3s', 'smtps', 'ldaps', 'ftps', 'ircs', 'nntps'}
+
+
+def _sondeo_de(ruta_resultado):
+    """XML del sondeo de Nmap que acompaña a un resultado de Nuclei/testssl (misma carpeta y fecha)."""
+    ruta = Path(ruta_resultado)
+    marca = re.search(_RE_FECHA_ARCHIVO, ruta.name)
+    prefijo = SONDEO_POR_EXTENSION.get(ruta.suffix)
+    if not marca or not prefijo:
+        return None
+    return ruta.parent / f"{prefijo}_{marca.group(0)}.xml"
+
+
+def _filas_con_hallazgos(ruta_resultado, hallazgos):
+    """
+    Filas planas (mismo formato que generar_tabla_xml) a partir del sondeo de Nmap, con los
+    hallazgos de Nuclei/testssl colgados de su (IP, puerto). Así el resto del parser, el CLI y
+    la GUI los tratan exactamente igual que a los hallazgos de Nmap.
+    """
+    sondeo = _sondeo_de(ruta_resultado)
+    filas = generar_tabla_xml(str(sondeo)) if sondeo and sondeo.exists() else []
+    if filas and "Error" in filas[0]:
+        filas = []
+
+    for entrada in hallazgos:
+        ip, puerto = entrada["device"], entrada["port"]
+        fila = next((f for f in filas if f['IP'] == ip and f['Puerto'] == puerto), None)
+        if fila is None:
+            # Hallazgo en un puerto que el sondeo no listó (ej. plantilla de red de Nuclei con su
+            # propio puerto): se crea la fila copiando los datos de host si el host es conocido.
+            del_host = next((f for f in filas if f['IP'] == ip), None)
+            fila = dict(del_host) if del_host else {
+                'IP': ip, 'HostStatus': 'up', 'MAC': 'N/D', 'Vendor': '', 'Hostname': '',
+                'LatenciaMs': 0.0, 'OS': None, 'LocationURLs': [],
+            }
+            fila.update({'Puerto': puerto, 'Protocolo': 'tcp', 'Estado': 'open' if puerto else None,
+                         'Servicio': 'N/D', 'Vulnerabilidades': [], 'PosiblesVulnerabilidades': []})
+            filas.append(fila)
+        fila['Vulnerabilidades'] = fila['Vulnerabilidades'] + [entrada]
+    return filas
+
+
+def filas_de_resultado(ruta):
+    """Filas planas de cualquier resultado principal (Nmap .xml, Nuclei .jsonl, testssl .json)."""
+    ruta = Path(ruta)
+    if ruta.suffix == ".xml":
+        return generar_tabla_xml(str(ruta))
+    try:
+        if ruta.suffix == ".jsonl":
+            registros = [json.loads(l) for l in ruta.read_text().splitlines() if l.strip()]
+            hallazgos = [vuln_classification.clasificar_nuclei(r) for r in registros]
+        elif ruta.suffix == ".json":
+            hallazgos = [vuln_classification.clasificar_testssl(r) for r in json.loads(ruta.read_text())]
+        else:
+            return [{"Error": f"Formato de resultado no reconocido: {ruta.name}"}]
+    except Exception as e:
+        return [{"Error": f"No se pudo leer el archivo: {e}"}]
+    return _filas_con_hallazgos(ruta, [h for h in hallazgos if h])
+
+
+def _duracion_escaneo(ruta):
+    """
+    Duración de un escaneo. Nmap la trae en su XML; para Nuclei/testssl se mide desde la fecha del
+    nombre (inicio del sondeo) hasta la última modificación del resultado (cuando terminó).
+    """
+    ruta = Path(ruta)
+    if ruta.suffix == ".xml":
+        try:
+            return _extraer_info_escaneo(ET.parse(ruta).getroot())
+        except Exception:
+            return {'segundos': 0.0, 'duracion_str': 'N/D', 'inicio': None, 'fin': None}
+    inicio = fecha_de_escaneo(ruta)
+    fin = datetime.fromtimestamp(ruta.stat().st_mtime)
+    segundos = max(0.0, (fin - inicio).total_seconds()) if inicio else 0.0
+    minutos, segs_resto = divmod(round(segundos), 60)
+    return {
+        'segundos': segundos,
+        'duracion_str': f"{minutos}m {segs_resto}s" if minutos else f"{segs_resto}s",
+        'inicio': str(inicio) if inicio else None,
+        'fin': str(fin),
+    }
 
 
 def ultimos_escaneos(os_folder):
@@ -396,16 +567,18 @@ def ultimos_escaneos(os_folder):
     contar en cuanto se vuelve a escanear esa categoría. Si el último escaneo de una categoría
     quedó incompleto (cancelado, interrumpido), se usa el anterior que sí terminó.
     """
-    resultados_dir = Path(__file__).parent.parent / "utils" / "Resultados" / os_folder / "Nmap"
-    if not resultados_dir.exists():
-        return []
-
-    patron = re.compile(rf"^(.+)_{_RE_FECHA_ARCHIVO}\.xml$")
     por_categoria = {}
-    for archivo in resultados_dir.glob("*.xml"):
-        m = patron.match(archivo.name)
-        if m:
-            por_categoria.setdefault(m.group(1), []).append(archivo)
+    for herramienta, extension in FORMATOS_RESULTADO.items():
+        resultados_dir = directorio_resultados(os_folder, herramienta)
+        if not resultados_dir.exists():
+            continue
+        # Solo la extensión del resultado principal de cada herramienta: los sondeos .xml de
+        # Nuclei/testssl viven en sus propias carpetas y no cuentan como categoría aparte.
+        patron = re.compile(rf"^(.+)_{_RE_FECHA_ARCHIVO}{re.escape(extension)}$")
+        for archivo in resultados_dir.iterdir():
+            m = patron.match(archivo.name)
+            if m:
+                por_categoria.setdefault(m.group(1), []).append(archivo)
 
     ultimos = []
     for archivos in por_categoria.values():
@@ -421,7 +594,7 @@ def obtener_datos_completos(os_folder):
     """Combina las filas del escaneo más reciente de cada categoría (ver ultimos_escaneos)."""
     todos_los_datos = []
     for archivo in ultimos_escaneos(os_folder):
-        datos = generar_tabla_xml(str(archivo))
+        datos = filas_de_resultado(archivo)
         if datos and "Error" not in datos[0]:
             todos_los_datos.extend(datos)
     return todos_los_datos
@@ -470,13 +643,7 @@ def obtener_estadisticas_dashboard(os_folder):
 
     # Tiempo total escaneando: suma del 'elapsed' de cada archivo XML combinado (cada uno
     # es una corrida de Nmap independiente, así que se suman, no se toma el máximo).
-    segundos_totales = 0.0
-    for archivo in archivos:
-        try:
-            info = _extraer_info_escaneo(ET.parse(archivo).getroot())
-            segundos_totales += info['segundos']
-        except Exception:
-            continue
+    segundos_totales = sum(_duracion_escaneo(archivo)['segundos'] for archivo in archivos)
 
     minutos, segs_resto = divmod(round(segundos_totales), 60)
     scan_time_total_str = f"{minutos}m {segs_resto}s" if minutos else f"{segs_resto}s"
@@ -694,23 +861,20 @@ def obtener_dispositivos_para_dashboard(os_folder):
     return dispositivos
 
 
-def obtener_resultados_categoria(ruta_xml):
+def obtener_resultados_categoria(ruta):
     """
-    Para la pestaña 'Escaneo': resultados de UN solo archivo XML de una categoría específica,
-    incluyendo tanto vulnerabilidades confirmadas COMO posibles (sin confirmar).
+    Para la pestaña 'Escaneo': resultados de UN solo archivo de una categoría específica (de
+    cualquier herramienta, ver filas_de_resultado), incluyendo tanto vulnerabilidades
+    confirmadas COMO posibles (sin confirmar).
     Las vulnerabilidades confirmadas se devuelven ya agrupadas por producto/versión
     (ver agrupar_vulnerabilidades_para_mostrar) para consistencia con el dashboard combinado.
-    También incluye 'scan_time' con la duración total de ESE escaneo en particular
-    (sacada de <runstats><finished> del propio XML).
+    También incluye 'scan_time' con la duración total de ESE escaneo en particular.
     """
-    filas = generar_tabla_xml(ruta_xml)
+    filas = filas_de_resultado(ruta)
     if filas and isinstance(filas[0], dict) and "Error" in filas[0]:
         return {"error": filas[0]["Error"]}
 
-    try:
-        scan_time = _extraer_info_escaneo(ET.parse(ruta_xml).getroot())
-    except Exception:
-        scan_time = {'segundos': 0.0, 'duracion_str': 'N/D', 'inicio': None, 'fin': None}
+    scan_time = _duracion_escaneo(ruta)
 
     dispositivos = _agrupar_por_dispositivo(filas, incluir_posibles=True)
     for dispositivo in dispositivos:
@@ -720,11 +884,15 @@ def obtener_resultados_categoria(ruta_xml):
     return {"devices": dispositivos, "scan_time": scan_time}
 
 
-def comparar_escaneos(ruta_xml_nuevo, ruta_xml_base):
-    """Compares two scans and returns what is NEW in the current scan."""
+def comparar_escaneos(ruta_nuevo, ruta_base):
+    """
+    Compara dos escaneos de la misma categoría y devuelve lo NUEVO en el más reciente: puertos
+    que antes no estaban, o puertos que ya estaban pero con hallazgos que antes no aparecían
+    (en ese caso la fila trae solo los hallazgos nuevos).
+    """
     try:
-        nuevo = generar_tabla_xml(ruta_xml_nuevo)
-        base = generar_tabla_xml(ruta_xml_base)
+        nuevo = filas_de_resultado(ruta_nuevo)
+        base = filas_de_resultado(ruta_base)
     except Exception as e:
         return [{"Error": f"Error al comparar archivos: {e}"}]
 
@@ -734,11 +902,18 @@ def comparar_escaneos(ruta_xml_nuevo, ruta_xml_base):
     if not nuevo or (isinstance(nuevo[0], dict) and "Error" in nuevo[0]):
         return nuevo
 
-    conocidos = set((f['IP'], f['Puerto']) for f in base)
+    conocidos = {}
+    for f in base:
+        conocidos.setdefault((f['IP'], f['Puerto']), set()).update(v['id'] for v in f.get('Vulnerabilidades', []))
 
     diferencias = []
     for f in nuevo:
-        if (f['IP'], f['Puerto']) not in conocidos:
+        clave = (f['IP'], f['Puerto'])
+        if clave not in conocidos:
             diferencias.append(f)
+            continue
+        hallazgos_nuevos = [v for v in f.get('Vulnerabilidades', []) if v['id'] not in conocidos[clave]]
+        if hallazgos_nuevos:
+            diferencias.append({**f, 'Vulnerabilidades': hallazgos_nuevos})
 
     return diferencias

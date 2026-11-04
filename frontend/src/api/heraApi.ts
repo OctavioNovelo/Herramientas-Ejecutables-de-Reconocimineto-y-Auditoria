@@ -21,6 +21,8 @@ export interface Vulnerability {
   // en una sola fila para no inundar la tabla — ver utils/parser.py::agrupar_vulnerabilidades_para_mostrar)
   cve_count?: number;
   cve_ids?: string[];
+  // Cómo corregirlo, si la herramienta lo indica (hoy: plantillas de Nuclei).
+  remediation?: string | null;
 }
 
 // Vulnerabilidad "posible" (Nmap buscó pero no pudo confirmarla). Solo aparece en los

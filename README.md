@@ -55,7 +55,8 @@ De las 3 categorías de herramientas planeadas, solo
 | Categoría | Qué hace |
 |---|---|
 | Escaneo rápido | Descubre hosts activos y sus 100 puertos más comunes |
-| Vulnerabilidades | Corre los scripts NSE de la categoría `vuln` + `vulners` (CVEs conocidos por versión) |
+| Vulnerabilidades | Nmap descubre los servicios y Nuclei comprueba cada falla contra la respuesta real del servicio (sin pruebas intrusivas ni de DoS), más EternalBlue (MS17-010) y MS12-020 (RDP) con Nmap |
+| Seguridad TLS | testssl.sh revisa cada servicio cifrado: protocolos viejos, cifrados débiles, certificado y fallas como Heartbleed |
 | Dispositivos ocultos | Encuentra los hosts que están en la red pero no responden al ping (firewall o configurados para no contestar): compara quién responde a ARP contra quién responde a ICMP, y escanea a fondo solo a los ocultos |
 | Auditoría admin | Busca puertos de gestión expuestos (SSH, RDP, VNC, paneles web, bases de datos, SNMP, IPMI, TR-069) y el título de cada panel web para saber cuál es |
 | Identificación de dispositivos | Fingerprinting agresivo (SO, marca/modelo vía NetBIOS, SMB, mDNS y UPnP) |
@@ -69,7 +70,7 @@ y menos preciso. Sirve para comprobar si tu propio firewall/IDS detecta un escan
 
 **Nota de diseño importante:** por defecto, HERA audita la **subred local**, detectada automáticamente vía `ip route` (Linux/macOS) o `ipconfig`
 (Windows) — el objetivo es mapear los dispositivos de tu propia red (routers, IoT,
-laptops, etc.). Las 7 categorías de escaneo también aceptan un **objetivo específico**
+laptops, etc.). Las 8 categorías de escaneo también aceptan un **objetivo específico**
 opcional (una IP, un rango, un CIDR o un hostname — cualquier formato que Nmap acepte),
 que reemplaza la subred local detectada solo para esa ejecución.
 

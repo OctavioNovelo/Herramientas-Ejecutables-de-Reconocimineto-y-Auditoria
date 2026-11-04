@@ -2,6 +2,13 @@
 # NUNCA deben subirse. Aquí viven todos los .xml/.txt que genera tools/nmap.py.
 utils/Resultados/
 
+# Nuclei: el binario (~140 MB) supera el límite de GitHub (100 MB) y las plantillas (~86 MB,
+# ~14 mil archivos) cambian cada semana; Nuclei las instala solo en su primera ejecución.
+# Ver tools/README.md para descargarlo.
+tools/tools_bin/*/Nuclei/nuclei
+tools/tools_bin/*/Nuclei/nuclei.exe
+tools/tools_bin/nuclei-templates/
+
 # Python
 __pycache__/
 # Solo bytecode: los .pyd SÍ se versionan (módulos nativos del Nmap/Zenmap de Windows en tools_bin/).

@@ -26,7 +26,9 @@ from utils.system_info import obtener_carpeta_os
 
 BASE_PATH = Path(__file__).parent.parent
 OS_FOLDER = obtener_carpeta_os(platform.system())
-RESULTADOS_DIR = BASE_PATH / "utils" / "Resultados" / OS_FOLDER / "Nmap"
+RESULTADOS_DIR = parser.directorio_resultados(OS_FOLDER, "Nmap")
+# Carpeta con los resultados de TODAS las herramientas (Nmap/, Nuclei/, Testssl/).
+RESULTADOS_OS_DIR = RESULTADOS_DIR.parent
 
 
 # --- Entrada del usuario ---
@@ -181,15 +183,15 @@ def vulnerar():
     ui.banner("Vulnerar")
     print("\nEn construcción.\n")
     print("Las herramientas de explotación y pentesting todavía están en desarrollo.")
-    print("Por ahora, la detección de vulnerabilidades vía Nmap está disponible en Detectar.")
+    print("Por ahora, la detección de vulnerabilidades está disponible en Detectar.")
     pausar()
 
 
 # --- Resultados ---
 
 def _escaneos(cat):
-    """XML de la categoría, del más reciente al más antiguo."""
-    return parser.buscar_escaneos(RESULTADOS_DIR, cat.file_base, extension=".xml")
+    """Resultados de la categoría (de cualquier herramienta), del más reciente al más antiguo."""
+    return parser.buscar_resultados(OS_FOLDER, cat.file_base)
 
 
 def _resumen_ultimo_escaneo(cat):
@@ -220,7 +222,9 @@ def ver_resultados(cat, limpiar=True):
 def buscar_en_resultados(cat):
     limpiar_pantalla()
     ui.banner(f"Buscar - {cat.label}")
-    grepables = parser.buscar_escaneos(RESULTADOS_DIR, cat.file_base, extension="_grepable.txt")
+    # Nmap: el .gnmap (una línea por host). Nuclei/testssl: el propio resultado (una línea por hallazgo).
+    grepables = (parser.buscar_escaneos(RESULTADOS_DIR, cat.file_base, extension="_grepable.txt")
+                 or _escaneos(cat))
     if not grepables:
         ui.aviso("No se encontraron resultados para esta categoría. Ejecuta un escaneo primero.")
         pausar()
@@ -358,9 +362,9 @@ def formulario_personalizado():
 
 
 def _archivos_resultados():
-    if not RESULTADOS_DIR.exists():
+    if not RESULTADOS_OS_DIR.exists():
         return set()
-    return {f for f in RESULTADOS_DIR.iterdir() if f.is_file()}
+    return {f for f in RESULTADOS_OS_DIR.rglob("*") if f.is_file()}
 
 
 def _descartar_archivos_nuevos(antes):
@@ -389,7 +393,7 @@ def _correr_escaneo(cat, lanzar):
         _descartar_archivos_nuevos(antes)
         ui.aviso("Escaneo cancelado. Se descartaron los archivos parciales.")
         return False
-    except (OSError, ValueError) as e:  # Sin privilegios en Windows, parámetros inválidos, etc.
+    except (OSError, ValueError, RuntimeError) as e:  # Sin privilegios, binario o dependencia faltante, etc.
         _descartar_archivos_nuevos(antes)
         ui.error(str(e))
         return False
