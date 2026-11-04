@@ -1,6 +1,7 @@
 // Puente hacia los comandos nativos de Tauri. Este archivo solo transporta datos, no los interpreta.
 
 import { invoke } from "@tauri-apps/api/core";
+import { isDemoMode, demoDashboard, demoCategory, demoScan, demoCancel } from "./demoData";
 
 // Interfaces de Datos de HERA (deben reflejar la forma exacta de lo que devuelve
 // utils/parser.py — ver obtener_dispositivos_agrupados / obtener_estadisticas_dashboard)
@@ -167,6 +168,7 @@ export interface CustomScanParams {
 // (equivalente a lo que el CLI pide por teclado en tools/nmap.py::personalizado).
 async function startCustomScan(params: CustomScanParams): Promise<string> {
   if (!isTauri()) {
+    if (isDemoMode()) return demoScan();
     throw new Error("Los escaneos solo están disponibles dentro de la aplicación nativa de HERA.");
   }
   return await invoke<string>("trigger_custom_scan", {
@@ -192,6 +194,7 @@ export const heraApi = {
   // Obtiene la dirección de red auditada (desde hosts.txt) y el hostname local
   async getHostInfo(): Promise<HostInfo> {
     if (!isTauri()) {
+      if (isDemoMode()) return { ip: "192.168.1.0/24", hostname: "hera-demo" };
       // Modo desarrollo en navegador (fuera de Tauri): no hay comandos nativos disponibles.
       return { ip: "N/D (modo navegador)", hostname: "N/D" };
     }
@@ -203,6 +206,7 @@ export const heraApi = {
   // Devuelve datos vacíos explícitos si no hay escaneos previos (sin fallback simulado).
   async getDashboardData(): Promise<DashboardData> {
     if (!isTauri()) {
+      if (isDemoMode()) return demoDashboard();
       return { devices: [], stats: EMPTY_STATS };
     }
     return await invoke<DashboardData>("get_dashboard_data");
@@ -212,6 +216,7 @@ export const heraApi = {
   // de esa categoría. 'fileBase' debe coincidir con ScanCategory.file_base (viewState.ts).
   async getCategoryResults(fileBase: string): Promise<CategoryResult> {
     if (!isTauri()) {
+      if (isDemoMode()) return demoCategory(fileBase);
       return { devices: [], found: false };
     }
     return await invoke<CategoryResult>("get_category_results", { fileBase });
@@ -227,6 +232,7 @@ export const heraApi = {
   // 'evasion' solo tiene efecto en las categorías con supportsEvasion (ocultos, full).
   async startScan(scanType: string, target?: string, evasion: boolean = false): Promise<string> {
     if (!isTauri()) {
+      if (isDemoMode()) return demoScan();
       throw new Error("Los escaneos solo están disponibles dentro de la aplicación nativa de HERA.");
     }
     return await invoke<string>("trigger_nmap_scan", {
@@ -252,8 +258,9 @@ export const heraApi = {
     return await invoke<string>("install_tool", { tool });
   },
 
-async cancelScan(): Promise<string> {
+  async cancelScan(): Promise<string> {
     if (!isTauri()) {
+        if (isDemoMode()) return demoCancel();
         throw new Error("La cancelación solo está disponible dentro de la aplicación nativa de HERA.");
     }
 

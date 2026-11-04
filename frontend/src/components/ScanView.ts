@@ -7,10 +7,11 @@
 // (protocolo, timing, puertos) antes de poder lanzarse, igual que el formulario del CLI
 // (frontend/CLI.py::formulario_personalizado). Ambos terminan en tools/nmap.py::personalizado.
 
-import { viewState, ScanCategory, VULN_VIEW_IDS } from "../state/viewState";
+import { viewState, ScanCategory } from "../state/viewState";
 import { scanState } from "../state/scanState";
-import { heraApi, CategoryDevice, Vulnerability, PossibleVulnerability, CustomScanParams, ScanTimeInfo, ToolStatus } from "../api/heraApi";
-import { adminPortLabel, isAdminPortStandard } from "../utils/portLabels";
+import { heraApi, CustomScanParams, ScanTimeInfo, ToolStatus } from "../api/heraApi";
+import { renderCategoryResults } from "./ScanResults";
+import { formatoReloj, esc } from "../utils/security";
 import "../styles/ScanView.css";
 
 export class ScanView {
@@ -134,7 +135,7 @@ export class ScanView {
 
     const label = document.createElement("span");
     label.className = "hera-scanview-action-bar-label hera-scanview-action-label";
-    label.textContent = `RESULTADOS — ${cat.label.toUpperCase()}`;
+    label.textContent = cat.label;
 
     const targetField = document.createElement("div");
     targetField.className = "hera-custom-field hera-target-field";
@@ -150,40 +151,10 @@ export class ScanView {
     targetField.appendChild(targetLabel);
     targetField.appendChild(targetInputEl);
 
-    const runBtn = document.createElement("button");
-    runBtn.className = "hera-scanview-run-btn";
-
-    const updateRunButton = () => {
-      if (scanState.getState().isScanning) {
-        runBtn.classList.add("is-scanning");
-        runBtn.textContent = "Escaneando...";
-        runBtn.title = "Pasar el cursor aquí para cancelar";
-      } else {
-        runBtn.classList.remove("is-scanning");
-        runBtn.textContent = "Ejecutar";
-        runBtn.title = "";
-      }
-    };
-
-    updateRunButton();
-
-    runBtn.addEventListener("mouseenter", () => {
-      if (scanState.getState().isScanning) {
-        runBtn.textContent = "Cancelar";
-      }
-    });
-
-    runBtn.addEventListener("mouseleave", () => {
-      if (scanState.getState().isScanning) {
-        runBtn.textContent = "Escaneando...";
-      }
-    });
+    const runBtn = this.buildRunControl();
 
     runBtn.addEventListener("click", async () => {
-      if (scanState.getState().isScanning) {
-        await scanState.cancelScan();
-        return;
-      }
+      if (scanState.getState().isScanning) return;
 
       if (cat.requiresTool) {
         let status: ToolStatus;
@@ -217,7 +188,7 @@ export class ScanView {
     this.actionBar.appendChild(runBtn);
   }
 
-  private buildCustomForm(isScanning: boolean): HTMLElement {
+  private buildCustomForm(_isScanning: boolean): HTMLElement {
     const form = document.createElement("div");
     form.className = "hera-custom-form";
 
@@ -335,40 +306,10 @@ export class ScanView {
     );
 
     // Botón ejecutar (con validación previa — ver validateCustomForm)
-    const runBtn = document.createElement("button");
-    runBtn.className = "hera-scanview-run-btn";
-
-    const updateRunButton = () => {
-      if (scanState.getState().isScanning) {
-        runBtn.classList.add("is-scanning");
-        runBtn.textContent = "Escaneando...";
-        runBtn.title = "Pasar el cursor aquí para cancelar";
-      } else {
-        runBtn.classList.remove("is-scanning");
-        runBtn.textContent = "Ejecutar";
-        runBtn.title = "";
-      } 
-    };
-
-    updateRunButton();
-
-    runBtn.addEventListener("mouseenter", () => {
-      if (scanState.getState().isScanning) {
-        runBtn.textContent = "Cancelar";
-      }
-    });
-
-    runBtn.addEventListener("mouseleave", () => {
-      if (scanState.getState().isScanning) {
-        runBtn.textContent = "Escaneando...";
-      } 
-    });
+    const runBtn = this.buildRunControl();
 
     runBtn.addEventListener("click", async () => {
-      if (scanState.getState().isScanning) {
-        await scanState.cancelScan();
-        return;
-      }
+      if (scanState.getState().isScanning) return;
 
       const validationError = this.validateCustomForm();
 
@@ -392,6 +333,44 @@ export class ScanView {
     form.appendChild(errorEl);
 
     return form;
+  }
+
+  // Control de ejecución: botón "Ejecutar" en reposo; durante un escaneo, un bloque de
+  // progreso (qué corre + reloj) con un botón "Cancelar escaneo" siempre visible. Sustituye
+  // al antiguo "pasa el cursor para cancelar", que no se descubría ni funcionaba con teclado.
+  private progressTimer: number | null = null;
+
+  private buildRunControl(): HTMLElement {
+    if (this.progressTimer !== null) {
+      clearInterval(this.progressTimer);
+      this.progressTimer = null;
+    }
+    const st = scanState.getState();
+    if (!st.isScanning) {
+      const runBtn = document.createElement("button");
+      runBtn.className = "hera-scanview-run-btn";
+      runBtn.textContent = "Ejecutar";
+      return runBtn;
+    }
+
+    const box = document.createElement("div");
+    box.className = "hera-progress";
+    box.setAttribute("role", "status");
+    box.innerHTML = `
+      <span class="hera-progress-pulse" aria-hidden="true"></span>
+      <span class="hera-progress-text">Escaneando: ${esc(st.scanLabel ?? "")}</span>
+      <span class="hera-progress-clock">00:00</span>`;
+    const clock = box.querySelector(".hera-progress-clock") as HTMLElement;
+    const tick = () => (clock.textContent = formatoReloj(Date.now() - (st.scanStartedAt ?? Date.now())));
+    tick();
+    this.progressTimer = window.setInterval(tick, 1000);
+
+    const cancel = document.createElement("button");
+    cancel.className = "hera-progress-cancel";
+    cancel.textContent = "Cancelar escaneo";
+    cancel.addEventListener("click", () => scanState.cancelScan());
+    box.appendChild(cancel);
+    return box;
   }
 
   // Valida los parámetros del formulario "Personalizado" del lado del cliente, antes de
@@ -472,7 +451,7 @@ export class ScanView {
   // Usa su propia clase y no .hera-custom-field, porque ese estilo quita la apariencia nativa
   // de los <input> y dejaría la casilla invisible.
   private async runScan(cat: ScanCategory) {
-    await scanState.startScan(cat.id, this.targetInput, cat.supportsEvasion ? this.evasionEnabled : false);
+    await scanState.startScan(cat.id, this.targetInput, cat.supportsEvasion ? this.evasionEnabled : false, cat.label);
     this.loadAndRenderResults();
   }
 
@@ -608,258 +587,10 @@ export class ScanView {
         this.resultsArea.innerHTML = `<p class="hera-scan-empty-note">${nota}</p>`;
         return;
       }
-      this.renderDevices(cat, result.devices);
+      this.resultsArea.innerHTML = "";
+      this.resultsArea.appendChild(renderCategoryResults(cat, result.devices, this.lastScanTime));
     } catch (err: any) {
-      this.resultsArea.innerHTML = `<p class="hera-scan-empty-note"><Error al leer resultados: ${err?.message ?? err}</p>`;
+      this.resultsArea.innerHTML = `<p class="hera-scan-empty-note">No se pudieron leer los resultados: ${esc(err?.message ?? err)}</p>`;
     }
-  }
-
-  private renderDevices(cat: ScanCategory, devices: CategoryDevice[]) {
-    this.resultsArea.innerHTML = "";
-
-    // Duración del escaneo que generó estos resultados (ausente si el backend no la manda
-    // todavía para esta categoría, o si el XML no traía <runstats><finished>).
-    if (this.lastScanTime && this.lastScanTime.duracion_str !== "N/D") {
-      const timeNote = document.createElement("p");
-      timeNote.className = "hera-scan-time-note";
-      timeNote.textContent = `Duración del escaneo: ${this.lastScanTime.duracion_str}`;
-      this.resultsArea.appendChild(timeNote);
-    }
-
-    const grid = document.createElement("div");
-    // La categoría 'vuln' necesita más ancho por card: cada una se divide en 2 columnas
-    // (Confirmadas/Posibles) que no caben cómodamente en el ancho mínimo genérico de 300px.
-    const isVulnView = VULN_VIEW_IDS.has(cat.id);
-    grid.className = "hera-scan-devices-grid" + (isVulnView ? " is-vuln-grid" : "");
-
-    devices.forEach((dev) => {
-      const card = document.createElement("div");
-      card.className = "hera-scan-device-card";
-
-      const header = document.createElement("div");
-      header.className = "hera-scan-device-header";
-      header.innerHTML = `
-        <span class="hera-scan-device-ip">${dev.ip}</span>
-        <span class="hera-scan-device-name">${dev.device || "N/D"}</span>
-      `;
-      card.appendChild(header);
-
-      // Detección de SO (si la categoría corrió -O y Nmap logró algo). Se muestra para
-      // cualquier categoría excepto las de hallazgos (VULN_VIEW_IDS), que tienen su presentación propia.
-      if (!isVulnView) {
-        const osBlock = this.renderOsInfo(dev);
-        if (osBlock) card.appendChild(osBlock);
-      }
-
-      if (cat.id === "admin") {
-        card.appendChild(this.renderAdminPorts(dev));
-      } else {
-        card.appendChild(this.renderGenericBadges(dev));
-      }
-
-      // Puertos filtrados (probable firewall).
-      const filteredBlock = this.renderFilteredPorts(dev);
-      if (filteredBlock) card.appendChild(filteredBlock);
-
-      // URLs "Location:" (SSDP/UPnP) — pistas de identificación del dispositivo.
-      if (!isVulnView) {
-        const locBlock = this.renderLocationUrls(dev);
-        if (locBlock) card.appendChild(locBlock);
-      }
-
-      if (isVulnView) {
-        card.appendChild(this.renderVulnSplit(dev));
-      } else if (dev.vulnerabilities.length > 0) {
-        // Otras categorías (ej. full_pack) también pueden traer hallazgos confirmados:
-        // se muestran como badges simples, sin el desglose de dos columnas de "vuln".
-        card.appendChild(this.renderSimpleVulnBadges(dev.vulnerabilities));
-      }
-
-      grid.appendChild(card);
-    });
-
-    this.resultsArea.appendChild(grid);
-  }
-
-  // Resume la detección de SO de un dispositivo (Device type / Running / OS details, o los
-  // "guesses" más probables cuando no hay match exacto). Devuelve null si no hay nada que
-  // mostrar (categoría no corrió -O, o Nmap no encontró ningún osmatch).
-  private renderOsInfo(dev: CategoryDevice): HTMLElement | null {
-    const os = dev.os_info;
-    if (!os) return null;
-
-    const wrap = document.createElement("div");
-    wrap.className = "hera-scan-os-info";
-
-    if (os.exact_match) {
-      const parts: string[] = [];
-      if (os.device_types.length > 0) parts.push(os.device_types.join(", "));
-      if (os.running) parts.push(os.running);
-      if (parts.length === 0 && os.details) parts.push(os.details);
-      if (parts.length === 0) return null;
-      wrap.innerHTML = `<span class="hera-scan-os-label">SO:</span> ${parts.join(" — ")}`;
-      if (os.details) wrap.title = os.details;
-    } else {
-      if (os.guesses.length === 0) return null;
-      const guessText = os.guesses
-        .map((g) => `${g.name ?? "?"} (${g.accuracy ?? "?"}%)`)
-        .join(", ");
-      wrap.innerHTML = `<span class="hera-scan-os-label">SO (sin match exacto):</span> ${guessText}`;
-    }
-
-    return wrap;
-  }
-
-  // Puertos que respondieron "filtered" en vez de "open"/"closed" — probable firewall
-  // bloqueando la respuesta. Se muestran en naranja, sin emoji, distintos al estilo de los
-  // puertos abiertos.
-  private renderFilteredPorts(dev: CategoryDevice): HTMLElement | null {
-    if (dev.filtered_ports.length === 0) return null;
-
-    const wrap = document.createElement("div");
-    wrap.className = "hera-scan-badges hera-scan-filtered-badges";
-    dev.filtered_services.forEach((srv) => {
-      const badge = document.createElement("span");
-      badge.className = "hera-scan-badge is-filtered";
-      badge.textContent = srv;
-      wrap.appendChild(badge);
-    });
-    return wrap;
-  }
-
-  // URLs "Location:" (SSDP/UPnP) capturadas por scripts NSE — suelen apuntar a un XML de
-  // descripción del dispositivo (fabricante, modelo). Se listan como enlaces clicables.
-  private renderLocationUrls(dev: CategoryDevice): HTMLElement | null {
-    if (dev.location_urls.length === 0) return null;
-
-    const wrap = document.createElement("div");
-    wrap.className = "hera-scan-location-urls";
-    dev.location_urls.forEach((url) => {
-      const link = document.createElement("a");
-      link.href = url;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = url;
-      wrap.appendChild(link);
-    });
-    return wrap;
-  }
-
-  private renderGenericBadges(dev: CategoryDevice): HTMLElement {
-    const wrap = document.createElement("div");
-    wrap.className = "hera-scan-badges";
-    if (dev.services.length === 0) {
-      wrap.innerHTML = `<span class="hera-scan-empty-note">Sin puertos abiertos detectados</span>`;
-      return wrap;
-    }
-    dev.ports.forEach((port, i) => {
-      const badge = document.createElement("span");
-      badge.className = "hera-scan-badge";
-      badge.textContent = dev.services[i] ?? `${port}`;
-      const detail = dev.service_details.find((d) => d.port === port && d.state === "open");
-      if (detail) {
-        const bits = [detail.product, detail.version, detail.extrainfo].filter(Boolean);
-        if (bits.length > 0) {
-          badge.title = bits.join(" ");
-        } else if (!detail.reconocido && detail.fingerprint) {
-          badge.title = "Servicio no reconocido — fingerprint disponible";
-        }
-      }
-      wrap.appendChild(badge);
-    });
-    return wrap;
-  }
-
-  private renderAdminPorts(dev: CategoryDevice): HTMLElement {
-    const wrap = document.createElement("div");
-    wrap.className = "hera-scan-badges";
-    if (dev.ports.length === 0) {
-      wrap.innerHTML = `<span class="hera-scan-empty-note">Sin puertos de gestión abiertos</span>`;
-      return wrap;
-    }
-    dev.ports.forEach((port) => {
-      const badge = document.createElement("span");
-      const standard = isAdminPortStandard(port);
-      badge.className = "hera-scan-badge" + (standard ? "" : " is-warning");
-      // Título de la página (http-title): dice QUÉ panel es, no solo que el puerto está abierto.
-      const title = dev.service_details.find((d) => d.port === port && d.state === "open" && d.title)?.title;
-      const base = title ? `${port}/${adminPortLabel(port)} "${title}"` : `${port}/${adminPortLabel(port)}`;
-      badge.textContent = standard ? base : `${base} (no estándar)`;
-      if (title) badge.title = title;
-      wrap.appendChild(badge);
-    });
-    return wrap;
-  }
-
-  private renderSimpleVulnBadges(vulns: Vulnerability[]): HTMLElement {
-    const wrap = document.createElement("div");
-    wrap.className = "hera-scan-badges";
-    wrap.style.marginTop = "8px";
-    vulns.slice(0, 4).forEach((v) => {
-      const badge = document.createElement("span");
-      badge.className = `hera-vuln-row-sev ${v.severity}`;
-      badge.title = v.output;
-      badge.textContent = v.cve_count ? `${v.id} (${v.cve_count})` : v.id;
-      wrap.appendChild(badge);
-    });
-    return wrap;
-  }
-
-  private renderVulnSplit(dev: CategoryDevice): HTMLElement {
-    // Si el dispositivo no tiene NINGÚN hallazgo (ni confirmado ni posible), no vale la pena
-    // ocupar espacio con dos bloques vacíos repitiendo "Ninguna" — se muestra una sola nota.
-    if (dev.vulnerabilities.length === 0 && dev.possible_vulnerabilities.length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "hera-scan-empty-note";
-      empty.style.marginTop = "10px";
-      empty.textContent = "Sin hallazgos de vulnerabilidades en este dispositivo.";
-      return empty;
-    }
-
-    const wrap = document.createElement("div");
-    wrap.className = "hera-vuln-split";
-
-    const confirmadasBlock = document.createElement("div");
-    confirmadasBlock.className = "hera-vuln-block confirmadas";
-    confirmadasBlock.innerHTML = `<div class="hera-vuln-block-title">CONFIRMADAS (${dev.vulnerabilities.length})</div>`;
-    if (dev.vulnerabilities.length === 0) {
-      confirmadasBlock.innerHTML += `<span class="hera-scan-empty-note">Ninguna</span>`;
-    } else {
-      dev.vulnerabilities.forEach((v) => {
-        const detalle = v.remediation ? `${v.output}\n\nSolución: ${v.remediation}` : v.output;
-        confirmadasBlock.appendChild(this.buildVulnRow(v.id, v.severity, v.sev_label, detalle, v.cve_count));
-      });
-    }
-
-    const posiblesBlock = document.createElement("div");
-    posiblesBlock.className = "hera-vuln-block posibles";
-    posiblesBlock.innerHTML = `<div class="hera-vuln-block-title">POSIBLES — SIN CONFIRMAR (${dev.possible_vulnerabilities.length})</div>`;
-    if (dev.possible_vulnerabilities.length === 0) {
-      posiblesBlock.innerHTML += `<span class="hera-scan-empty-note">Ninguna</span>`;
-    } else {
-      dev.possible_vulnerabilities.forEach((v) => {
-        const row = this.buildVulnRow(v.id, "posible", "Sin confirmar", v.output);
-        posiblesBlock.appendChild(row);
-      });
-    }
-
-    wrap.appendChild(confirmadasBlock);
-    wrap.appendChild(posiblesBlock);
-    return wrap;
-  }
-
-  private buildVulnRow(id: string, sevClass: string, sevLabel: string, output: string, cveCount?: number): HTMLElement {
-    const row = document.createElement("div");
-    row.className = "hera-vuln-row";
-    row.title = output;
-    const title = document.createElement("span");
-    title.className = "hera-vuln-row-title";
-    title.textContent = cveCount ? `${id} (${cveCount})` : id;
-    const sev = document.createElement("span");
-    sev.className = `hera-vuln-row-sev ${sevClass}`;
-    sev.textContent = sevLabel;
-    row.appendChild(title);
-    row.appendChild(sev);
-    return row;
   }
 }
