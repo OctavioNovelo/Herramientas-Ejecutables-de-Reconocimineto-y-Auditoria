@@ -20,6 +20,10 @@ export interface AppState {
   stats: ScanStats | null;
   hostInfo: HostInfo | null;
   error: string | null;
+  // Solo presentación: cuándo empezó el escaneo en curso y qué se está ejecutando, para que
+  // la UI pueda mostrar un reloj de progreso y decir qué corre (el backend no emite avance).
+  scanStartedAt: number | null;
+  scanLabel: string | null;
 }
 
 type Subscriber = (state: AppState) => void;
@@ -32,6 +36,8 @@ class ScanStateManager {
     stats: null,
     hostInfo: null,
     error: null,
+    scanStartedAt: null,
+    scanLabel: null,
   };
 
   private subscribers: Set<Subscriber> = new Set();
@@ -83,10 +89,12 @@ class ScanStateManager {
   }
 
   // Inicia un escaneo de red real.
-  async startScan(scanType: string = "full_pack", target?: string, evasion: boolean = false) {
+  async startScan(scanType: string = "full_pack", target?: string, evasion: boolean = false, label?: string) {
     if (this.state.isScanning) return;
 
     this.state.isScanning = true;
+    this.state.scanStartedAt = Date.now();
+    this.state.scanLabel = label ?? (scanType === "full_pack" || scanType === "full" ? "Full pack" : scanType);
     this.state.error = null;
     this.notify();
 
@@ -111,6 +119,8 @@ class ScanStateManager {
 
     } finally {
       this.state.isScanning = false;
+      this.state.scanStartedAt = null;
+      this.state.scanLabel = null;
       this.notify();
     }
   }
@@ -120,6 +130,8 @@ class ScanStateManager {
     if (this.state.isScanning) return;
 
     this.state.isScanning = true;
+    this.state.scanStartedAt = Date.now();
+    this.state.scanLabel = "Personalizado";
     this.state.error = null;
     this.notify();
 
@@ -146,6 +158,8 @@ class ScanStateManager {
 
     } finally {
       this.state.isScanning = false;
+      this.state.scanStartedAt = null;
+      this.state.scanLabel = null;
       this.notify();
     }
   }
