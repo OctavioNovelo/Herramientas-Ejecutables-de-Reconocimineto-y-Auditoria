@@ -548,6 +548,87 @@ except Exception as e:
     Ok(format!("El escaneo '{}' se completó correctamente y los datos han sido guardados.", scan_type))
 }
 
+// Herramientas extra de una categoría (ScanCategory.requiresTool en viewState.ts): si están
+// instaladas y, si no, la versión y el tamaño de descarga para pedir permiso de instalarlas.
+// El nombre llega por sys.argv y Python lo valida contra core/executor.py::HERRAMIENTAS.
+#[tauri::command]
+fn get_tool_status(tool: String) -> Result<serde_json::Value, String> {
+    let root = find_workspace_root()
+        .ok_or_else(|| "No se pudo localizar el directorio de HERA.".to_string())?;
+
+    let python_code = r#"
+import sys, json, importlib
+sys.path.append('.')
+try:
+    import core.executor as ejec
+    from utils.system_info import obtener_sistema_operativo, obtener_carpeta_os
+    tool = sys.argv[1]
+    modulo = importlib.import_module(ejec.HERRAMIENTAS[tool])
+    os_folder = obtener_carpeta_os(obtener_sistema_operativo())
+    print(json.dumps({
+        "installed": ejec.buscar_binario(tool, os_folder) is not None,
+        "version": getattr(modulo, "VERSION", None),
+        "download_size": getattr(modulo, "TAMANO_DESCARGA", None),
+    }))
+except Exception as e:
+    print(f"No se pudo comprobar la herramienta: {e}", file=sys.stderr)
+    sys.exit(1)
+"#;
+
+    let output = std::process::Command::new("python3")
+        .arg("-c")
+        .arg(python_code)
+        .arg(&tool)
+        .current_dir(&root)
+        .output()
+        .map_err(|e| format!("Fallo al iniciar el subproceso de Python: {}", e))?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    serde_json::from_str(&stdout)
+        .map_err(|e| format!("Respuesta inesperada del backend Python: {} (raw: {})", e, stdout))
+}
+
+// Instala una herramienta con instalar() de su módulo (ej. tools/nuclei.py: descarga la release
+// oficial y verifica su SHA-256). Solo se llama después de que el usuario lo acepte en la interfaz.
+// async: la descarga tarda y no debe congelar la ventana.
+#[tauri::command]
+async fn install_tool(tool: String) -> Result<String, String> {
+    let root = find_workspace_root()
+        .ok_or_else(|| "No se pudo localizar el directorio de HERA.".to_string())?;
+
+    let python_code = r#"
+import sys, importlib
+sys.path.append('.')
+try:
+    import core.executor as ejec
+    from utils.system_info import obtener_sistema_operativo, obtener_carpeta_os
+    tool = sys.argv[1]
+    modulo = importlib.import_module(ejec.HERRAMIENTAS[tool])
+    modulo.instalar(obtener_carpeta_os(obtener_sistema_operativo()))
+except Exception as e:
+    print(f"No se pudo instalar {sys.argv[1]}: {e}", file=sys.stderr)
+    sys.exit(1)
+"#;
+
+    let output = std::process::Command::new("python3")
+        .arg("-c")
+        .arg(python_code)
+        .arg(&tool)
+        .current_dir(&root)
+        .output()
+        .map_err(|e| format!("Fallo al iniciar el subproceso de Python: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(stderr.lines().last().unwrap_or("La instalación falló.").to_string());
+    }
+    Ok(format!("{} instalado.", tool))
+}
+
 // Comando para la pestaña "Escaneo": busca el resultado más reciente de una categoría
 // específica (mismo criterio que buscar_resultados en utils/parser.py) y devuelve sus resultados
 // ya procesados (dispositivos agrupados + vulnerabilidades confirmadas/posibles).
@@ -712,6 +793,8 @@ fn main() {
         read_scan_results,
         get_dashboard_data,
         get_category_results,
+        get_tool_status,
+        install_tool,
         trigger_nmap_scan,
         trigger_custom_scan,
         cancel_nmap_scan

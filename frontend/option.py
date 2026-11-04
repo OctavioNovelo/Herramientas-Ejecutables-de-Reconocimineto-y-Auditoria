@@ -31,6 +31,10 @@ class Categoria:
     # True si la función acepta evasion=True (técnicas de evasión de firewall/IDS, apagadas por
     # defecto — ver tools/nmap.py::_args_evasion). Mismo flag que 'supportsEvasion' en viewState.ts.
     admite_evasion: bool = False
+    # Herramienta extra que necesita (clave de core/executor.py::HERRAMIENTAS) y que HERA puede
+    # instalar con el permiso del usuario (su módulo define instalar()). Mismo campo que
+    # 'requiresTool' en viewState.ts.
+    requiere: Optional[str] = None
 
 
 CATEGORIAS = [
@@ -45,6 +49,7 @@ CATEGORIAS = [
         "Comprueba fallas reales (CVEs, paneles expuestos, malas configuraciones) contra cada servicio.\n"
         "Nmap encuentra los servicios y Nuclei los verifica. Sin pruebas intrusivas ni de DoS.",
         nuclei.vulnerabilidades,
+        requiere="Nuclei",
     ),
     Categoria(
         "tls", "Seguridad TLS", "seguridad_tls", "detectar",

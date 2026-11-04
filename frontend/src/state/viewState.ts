@@ -26,6 +26,9 @@ export interface ScanCategory {
   // true si la categoría ofrece la opción de evasión de firewall/IDS (apagada por defecto,
   // ver tools/nmap.py::_args_evasion). Mismo flag que 'admite_evasion' en frontend/option.py.
   supportsEvasion?: boolean;
+  // Herramienta extra que necesita la categoría y que HERA puede instalar con permiso del
+  // usuario (ver ScanView.ts::renderInstallPrompt). Mismo campo que 'requiere' en option.py.
+  requiresTool?: string;
 }
 
 // Categorías cuyo resultado es una lista de hallazgos y se muestran con la vista de
@@ -34,7 +37,7 @@ export const VULN_VIEW_IDS = new Set(["vuln", "tls"]);
 
 export const SCAN_CATEGORIES: ScanCategory[] = [
   { id: "rapido", label: "Escaneo rápido", file_base: "escaneo_rapido", group: "mapear" },
-  { id: "vuln", label: "Vulnerabilidades", file_base: "vulnerabilidades", group: "detectar" },
+  { id: "vuln", label: "Vulnerabilidades", file_base: "vulnerabilidades", group: "detectar", requiresTool: "Nuclei" },
   { id: "tls", label: "Seguridad TLS", file_base: "seguridad_tls", group: "detectar" },
   // NOTA: tools/nmap.py::dispositivos_ocultos() corre en 2 etapas; el sondeo intermedio se
   // guarda como "sondeo_ocultos" y el resultado final (el que se muestra) como "dispositivos_ocultos".

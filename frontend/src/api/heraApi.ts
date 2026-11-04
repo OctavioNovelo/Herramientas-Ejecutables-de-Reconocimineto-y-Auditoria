@@ -180,6 +180,13 @@ async function startCustomScan(params: CustomScanParams): Promise<string> {
   });
 }
 
+// Estado de una herramienta extra (get_tool_status en main.rs).
+export interface ToolStatus {
+  installed: boolean;
+  version: string | null;
+  download_size: string | null;
+}
+
 // Servicio API de HERA
 export const heraApi = {
   // Obtiene la dirección de red auditada (desde hosts.txt) y el hostname local
@@ -227,6 +234,22 @@ export const heraApi = {
       target: target?.trim() || null,
       evasion,
     });
+  },
+
+  // ¿Está instalada la herramienta extra de una categoría? (ScanCategory.requiresTool)
+  async getToolStatus(tool: string): Promise<ToolStatus> {
+    if (!isTauri()) {
+      return { installed: true, version: null, download_size: null };
+    }
+    return await invoke<ToolStatus>("get_tool_status", { tool });
+  },
+
+  // Descarga e instala la herramienta (instalar() de su módulo en tools/). Solo tras confirmación.
+  async installTool(tool: string): Promise<string> {
+    if (!isTauri()) {
+      throw new Error("La instalación solo está disponible dentro de la aplicación nativa de HERA.");
+    }
+    return await invoke<string>("install_tool", { tool });
   },
 
 async cancelScan(): Promise<string> {

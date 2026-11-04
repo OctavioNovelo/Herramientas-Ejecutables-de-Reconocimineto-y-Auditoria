@@ -13,14 +13,19 @@ Cada herramienta tiene su módulo en `tools/` (`nmap.py`, `nuclei.py`, `testssl.
 
 ## Instalar Nuclei
 
-Descargar el `.zip` del SO desde las [releases de Nuclei](https://github.com/projectdiscovery/nuclei/releases),
-verificar su SHA-256 contra `nuclei_<versión>_checksums.txt` y dejar el binario en:
+No hay que hacer nada a mano: al elegir **Vulnerabilidades** sin Nuclei instalado, el CLI y la GUI
+piden permiso para instalarlo. `tools/nuclei.py::instalar()` descarga el `.zip` de la
+[release oficial](https://github.com/projectdiscovery/nuclei/releases) (versión fija `VERSION`),
+verifica su SHA-256 contra los hashes de `DESCARGAS` y deja el binario en:
 
 - `tools/tools_bin/Linux/Nuclei/nuclei`
 - `tools/tools_bin/Windows/Nuclei/nuclei.exe`
 - `tools/tools_bin/macos/Nuclei/nuclei`
 
-La primera ejecución descarga las plantillas (requiere internet esa vez).
+Soporta x86_64 y ARM64. La primera ejecución descarga las plantillas (requiere internet esa vez).
+
+Para actualizar Nuclei: cambiar `VERSION` y los hashes de `DESCARGAS` en `tools/nuclei.py` con los
+de `nuclei_<versión>_checksums.txt` de la nueva release.
 
 ## Requisitos de testssl.sh
 

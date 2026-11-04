@@ -7,6 +7,7 @@ utils/Resultados/
 # Ver tools/README.md para descargarlo.
 tools/tools_bin/*/Nuclei/nuclei
 tools/tools_bin/*/Nuclei/nuclei.exe
+tools/tools_bin/*/Nuclei/*.descarga
 tools/tools_bin/nuclei-templates/
 
 # Python

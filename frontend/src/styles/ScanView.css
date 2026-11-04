@@ -129,6 +129,40 @@
   cursor: pointer;
 }
 
+/* Solicitud de instalación de una herramienta que falta (ver ScanView.ts::renderInstallPrompt). */
+.hera-install-prompt {
+  width: 100%;
+}
+
+.hera-install-prompt-text {
+  color: #c4d3e0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+.hera-install-prompt-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hera-install-prompt-cancel {
+  background: transparent;
+  color: #6a8298;
+  border: 1px solid #2a3a4a;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 9px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.hera-install-prompt button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .hera-custom-form-error {
   width: 100%;
   color: #f87171;

@@ -12,6 +12,7 @@
 # Este módulo solo orquesta: QUÉ categorías existen vive en option.py, CÓMO se pinta vive en
 # cli_render.py, CÓMO se ejecuta vive en tools/nmap.py y CÓMO se interpreta vive en utils/parser.py.
 
+import importlib
 import platform
 import re
 import subprocess
@@ -267,6 +268,9 @@ def comparar_con_anterior(cat):
 def ejecutar_categoria(cat):
     limpiar_pantalla()
     ui.banner(cat.label)
+    if cat.requiere and not _herramienta_lista(cat.requiere):
+        pausar()
+        return
     try:
         context = ejec.ejecutar_herramienta("Nmap", OS_FOLDER)
     except (OSError, KeyError) as e:
@@ -310,6 +314,25 @@ def ejecutar_categoria(cat):
         ver_resultados(cat, limpiar=False)
     else:
         pausar()
+
+
+def _herramienta_lista(herramienta):
+    """True si 'herramienta' está instalada; si no, ofrece instalarla (ver instalar() en su módulo)."""
+    if ejec.buscar_binario(herramienta, OS_FOLDER) is not None:
+        return True
+    modulo = importlib.import_module(ejec.HERRAMIENTAS[herramienta])
+    ui.seccion(f"{herramienta} no está instalado")
+    print(f"Esta categoría necesita {herramienta} {modulo.VERSION}. HERA puede descargarlo de su")
+    print(f"release oficial ({modulo.TAMANO_DESCARGA}) y verificar su firma SHA-256 antes de instalarlo.\n")
+    if not confirmar(f"¿Instalar {herramienta} ahora?"):
+        return False
+    try:
+        modulo.instalar(OS_FOLDER)
+    except (OSError, RuntimeError, KeyError) as e:
+        ui.error(str(e))
+        return False
+    ui.exito(f"{herramienta} instalado.\n")
+    return True
 
 
 def formulario_personalizado():

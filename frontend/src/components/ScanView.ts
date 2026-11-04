@@ -9,7 +9,7 @@
 
 import { viewState, ScanCategory, VULN_VIEW_IDS } from "../state/viewState";
 import { scanState } from "../state/scanState";
-import { heraApi, CategoryDevice, Vulnerability, PossibleVulnerability, CustomScanParams, ScanTimeInfo } from "../api/heraApi";
+import { heraApi, CategoryDevice, Vulnerability, PossibleVulnerability, CustomScanParams, ScanTimeInfo, ToolStatus } from "../api/heraApi";
 import { adminPortLabel, isAdminPortStandard } from "../utils/portLabels";
 import "../styles/ScanView.css";
 
@@ -44,6 +44,15 @@ export class ScanView {
   // Duración del último escaneo cargado para la categoría actual (viene de
   // obtener_resultados_categoria -> 'scan_time'). Se resetea en cada carga.
   private lastScanTime: ScanTimeInfo | null = null;
+
+  // Solicitud de instalación de la herramienta que le falta a la categoría (cat.requiresTool),
+  // mostrada en lugar de la barra de acción. Se abre al pulsar Ejecutar si falta la herramienta.
+  private installPrompt: {
+    tool: string;
+    status: ToolStatus;
+    installing: boolean;
+    error: string | null;
+  } | null = null;
 
   constructor() {
     this.element = document.createElement("div");
@@ -115,6 +124,14 @@ export class ScanView {
       return;
     }
 
+    if (this.installPrompt && this.installPrompt.tool !== cat.requiresTool) {
+      this.installPrompt = null; // se cambió de categoría
+    }
+    if (this.installPrompt) {
+      this.actionBar.appendChild(this.renderInstallPrompt(cat));
+      return;
+    }
+
     const label = document.createElement("span");
     label.className = "hera-scanview-action-bar-label hera-scanview-action-label";
     label.textContent = `RESULTADOS — ${cat.label.toUpperCase()}`;
@@ -168,8 +185,24 @@ export class ScanView {
         return;
       }
 
-      await scanState.startScan(cat.id, this.targetInput, cat.supportsEvasion ? this.evasionEnabled : false);
-      this.loadAndRenderResults();
+      if (cat.requiresTool) {
+        let status: ToolStatus;
+        try {
+          status = await heraApi.getToolStatus(cat.requiresTool);
+        } catch (err: any) {
+          status = { installed: false, version: null, download_size: null };
+          this.installPrompt = { tool: cat.requiresTool, status, installing: false, error: String(err?.message ?? err) };
+          this.renderActionBar();
+          return;
+        }
+        if (!status.installed) {
+          this.installPrompt = { tool: cat.requiresTool, status, installing: false, error: null };
+          this.renderActionBar();
+          return;
+        }
+      }
+
+      await this.runScan(cat);
     });
 
     this.actionBar.appendChild(label);
@@ -438,6 +471,74 @@ export class ScanView {
   // Casilla opcional de evasión de firewall/IDS (fragmentación, señuelos, orden aleatorio).
   // Usa su propia clase y no .hera-custom-field, porque ese estilo quita la apariencia nativa
   // de los <input> y dejaría la casilla invisible.
+  private async runScan(cat: ScanCategory) {
+    await scanState.startScan(cat.id, this.targetInput, cat.supportsEvasion ? this.evasionEnabled : false);
+    this.loadAndRenderResults();
+  }
+
+  // Pide permiso para instalar la herramienta que falta. Al aceptar, la instala (descarga de la
+  // release oficial + verificación SHA-256 en tools/<herramienta>.py) y lanza el escaneo, igual
+  // que el CLI (CLI.py::_herramienta_lista).
+  private renderInstallPrompt(cat: ScanCategory): HTMLElement {
+    const prompt = this.installPrompt!;
+    const box = document.createElement("div");
+    box.className = "hera-install-prompt";
+
+    const text = document.createElement("p");
+    text.className = "hera-install-prompt-text";
+    const version = prompt.status.version ? ` ${prompt.status.version}` : "";
+    const size = prompt.status.download_size ? ` (${prompt.status.download_size})` : "";
+    text.textContent =
+      `${cat.label} necesita ${prompt.tool}${version}, que no está instalado. HERA puede descargarlo ` +
+      `de su release oficial${size} y verificar su SHA-256 antes de instalarlo.`;
+    box.appendChild(text);
+
+    const buttons = document.createElement("div");
+    buttons.className = "hera-install-prompt-buttons";
+
+    const installBtn = document.createElement("button");
+    installBtn.className = "hera-scanview-run-btn";
+    installBtn.textContent = prompt.installing ? "Instalando..." : `Instalar ${prompt.tool}`;
+    installBtn.disabled = prompt.installing;
+    installBtn.addEventListener("click", async () => {
+      prompt.installing = true;
+      prompt.error = null;
+      this.renderActionBar();
+      try {
+        await heraApi.installTool(prompt.tool);
+      } catch (err: any) {
+        prompt.installing = false;
+        prompt.error = typeof err === "string" ? err : String(err?.message ?? err);
+        this.renderActionBar();
+        return;
+      }
+      this.installPrompt = null;
+      this.renderActionBar();
+      await this.runScan(cat);
+    });
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.className = "hera-install-prompt-cancel";
+    cancelBtn.textContent = "Cancelar";
+    cancelBtn.disabled = prompt.installing;
+    cancelBtn.addEventListener("click", () => {
+      this.installPrompt = null;
+      this.renderActionBar();
+    });
+
+    buttons.appendChild(installBtn);
+    buttons.appendChild(cancelBtn);
+    box.appendChild(buttons);
+
+    if (prompt.error) {
+      const error = document.createElement("p");
+      error.className = "hera-custom-form-error";
+      error.textContent = prompt.error;
+      box.appendChild(error);
+    }
+    return box;
+  }
+
   private buildEvasionToggle(checked: boolean, onChange: (checked: boolean) => void): HTMLElement {
     const label = document.createElement("label");
     label.className = "hera-evasion-toggle";
