@@ -64,11 +64,20 @@ export function contarHasta(el: HTMLElement, destino: number, ms = 700) {
     return;
   }
   const t0 = performance.now();
+  let terminado = false;
   const paso = (t: number) => {
+    if (terminado) return;
     const k = Math.min(1, (t - t0) / ms);
     const e = 1 - Math.pow(1 - k, 3);
     el.textContent = String(Math.round(destino * e));
     if (k < 1) requestAnimationFrame(paso);
+    else terminado = true;
   };
   requestAnimationFrame(paso);
+  // Si el navegador deja de dar cuadros de animación (ventana oculta, render sin composición),
+  // el número no se puede quedar a medias: a los ms + 150 se fija el valor final.
+  setTimeout(() => {
+    terminado = true;
+    el.textContent = String(destino);
+  }, ms + 150);
 }
