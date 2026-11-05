@@ -20,11 +20,19 @@
     "@fontsource-variable/familjen-grotesk": "^5.3.0",
     "@fontsource-variable/martian-mono": "^5.3.0",
     "@fontsource-variable/onest": "^5.3.1",
-    "@tauri-apps/api": "^2.1.1"
+    "@tauri-apps/api": "^2.1.1",
+    "d3-force": "3.0.0",
+    "lucide": "1.59.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.4",
+    "@types/d3-force": "3.0.10",
     "typescript": "^5.4.5",
     "vite": "^8.2.1"
+  },
+  "overrides": {
+    "d3-dispatch": "3.0.1",
+    "d3-quadtree": "3.0.1",
+    "d3-timer": "3.0.1"
   }
 }

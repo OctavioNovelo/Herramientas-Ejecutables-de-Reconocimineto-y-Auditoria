@@ -263,6 +263,7 @@ body.escaneando .fondo::before { animation: respirar 3s ease-in-out infinite; }
 .bloque.filtrado polygon { fill: var(--panel-3); stroke: var(--tinta-2); stroke-dasharray: 2 1.5; }
 .bloque.con-h polygon { fill: var(--riesgo); stroke: var(--riesgo); }
 .bloque text { font: 10px var(--mono); font-stretch: 80%; text-anchor: middle; fill: var(--tinta-2); }
+.bloque-mas { font: 600 11px var(--mono); font-stretch: 85%; text-anchor: middle; fill: var(--tinta-2); }
 .bloque.con-h text { fill: var(--riesgo); font-weight: 600; }
 .marca-h path { fill: var(--est); }
 .explota .capa { animation: separar 520ms cubic-bezier(.2,.8,.2,1) backwards; animation-delay: calc(var(--i) * 40ms); }

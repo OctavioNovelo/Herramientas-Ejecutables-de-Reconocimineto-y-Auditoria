@@ -9,6 +9,7 @@ import { adminPortLabel, isAdminPortStandard } from "../utils/portLabels";
 import { esc, estadoHost, ESTADO_FORMA, ESTADO_TEXTO } from "../utils/security";
 import { filtroState, coincide } from "../state/filtro";
 import { Buscador } from "./Buscador";
+import { tipoDe, iconoSvg, TIPOS } from "../utils/tipos";
 
 function hoja(cat: ScanCategory, d: CategoryDevice): string {
   const admin = cat.id === "admin";
@@ -48,6 +49,7 @@ function hoja(cat: ScanCategory, d: CategoryDevice): string {
 
   return `<article class="hoja-host est-${est}">
     <header>
+      <span class="hh-ico" title="${TIPOS[tipoDe(d)].nombre}">${iconoSvg(tipoDe(d), "ico", 20)}</span>
       <p class="hh-est">${ESTADO_FORMA[est]} ${ESTADO_TEXTO[est]}</p>
       <h3>${esc(d.ip)}</h3>
       <p class="hh-nombre">${esc(d.device || "Sin nombre")}</p>
