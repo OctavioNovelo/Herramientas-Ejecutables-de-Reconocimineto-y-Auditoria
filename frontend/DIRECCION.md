@@ -1,26 +1,21 @@
-# Dirección H — "Señal" (tercera ronda)
+# Dirección L — "Panorama" (ronda final)
 
-La base es **G** (la favorita): buscador grande arriba, índice de hosts a la izquierda. Al
-centro, la red **como la ve el router**: la puerta de enlace emite ondas, cada dispositivo se
-conecta a ella con una línea y se agrupa en un sector según su **tipo** (computadoras,
-teléfonos, TV, cámaras...), con su ícono. Más lejos del router = más latencia (lo inalámbrico y
-lo lejano responde más lento). A la derecha, el plan o la ficha con las **láminas de F**.
+Las mismas piezas de H, pero **el mapa es la pantalla**. La red desde el router ocupa todo el
+fondo y lo demás flota encima en dos paneles que se pliegan:
 
-## Respuesta a la segunda ronda
-- **Sin lag:** la posición se calcula una vez por escaneo con d3-force (física que separa los
-  nodos) y se dibuja como SVG estático. Solo se animan las ondas del router (CSS) y la línea del
-  host elegido. E se descartó porque redibujaba miles de puntos en cada cuadro.
-- **Realista para wifi:** una topología en estrella alrededor del router en vez del relieve 3D.
-- **Láminas de F**, con los puertos en cuadrícula cuando son muchos (prueba el 192.168.1.10).
-- Hojas de F/G en Mapear y Detectar, ahora con el ícono del tipo.
+- **Izquierda:** buscador, filtros e índice de hosts (botón "Índice" o tecla `[`).
+- **Derecha:** "Qué hacer ahora" o la ficha del host con las láminas de F (botón "Plan"/"Ficha"
+  o tecla `]`).
+- **Arriba, al centro:** el estado de la red en una cápsula.
 
-## Tipo de dispositivo
-`src/utils/tipos.ts` lo deduce del fabricante/nombre, los puertos y el tipo de sistema de Nmap.
-Es una estimación para agrupar; el dato real sigue en la ficha. Íconos de Lucide (ISC).
+El mapa sabe qué parte tapan los paneles: encaja la red en la zona libre, y al elegir un host lo
+lleva al centro de esa zona. Si pliegas los dos paneles, la red crece a toda la ventana.
 
-## Paleta
-La de G: pizarra `#161C23`, panel `#1B222B`, pluma `#32D9BA` (seguro), cresta `#E0B65A`
-(alerta), coral `#F2735C` (riesgo), cian `#1BA1BF` (ondas). Onest + Martian Mono.
+Comparte con K: zoom y arrastre (rueda, + y −, doble clic, 0), índice y mapa conectados, corona
+de puertos, barras de respuesta y el botón "Colores". Por defecto usa **Ocelo** (ciruela y
+turquesa del pavo real); las otras paletas están en el mismo botón.
 
-## Verla
-`npm run tauri:demo` (9 hosts), `npm run tauri:demogrande` (43), `npm run tauri dev` (real).
+Hanken Grotesk + JetBrains Mono (nuevas, versiones 5.2.8 de 2025).
+Paneles opacos sin desenfoque: en WebKitGTK sin composición el blur repinta todo en cada cuadro.
+
+Verla: `npm install` y luego `npm run tauri:demogrande` (43 hosts) o `npm run tauri:demo`.

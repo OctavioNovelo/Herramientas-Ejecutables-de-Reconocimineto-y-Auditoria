@@ -1,12 +1,13 @@
-// HERA, dirección H "Señal" (tercera ronda). La base es G (buscador arriba, índice a la
-// izquierda); al centro, la red como la ve el router: dispositivos agrupados por tipo, con su
-// ícono, a una distancia que crece con la latencia. A la derecha, el plan o la ficha del host
-// con las láminas de F. El logo es el botón de inicio.
+// HERA, dirección L "Panorama" (ronda final). Las mismas piezas de H (buscador e índice, la red
+// desde el router, plan o ficha con las láminas de F), pero el mapa ocupa toda la pantalla y lo
+// demás flota encima en dos paneles que se pueden plegar. El mapa sabe qué parte tapan los
+// paneles: encaja la red en lo que queda libre y lleva ahí el host que eliges.
+// El logo es el botón de inicio.
 
-import "@fontsource-variable/onest";
-import "@fontsource-variable/martian-mono/wdth.css";
+import "@fontsource-variable/hanken-grotesk";
+import "@fontsource-variable/jetbrains-mono";
 import "./styles/comun.css";
-import "./styles/senal.css";
+import "./styles/panorama.css";
 import "./styles/temas.css";
 import logo from "./assets/hera-logo.png";
 
@@ -23,7 +24,7 @@ import { esc, estadoRed, estadoHost, ESTADO_FORMA, formatoReloj, contarHasta, Es
 import { tipoDe, iconoSvg, TIPOS } from "./utils/tipos";
 import { Temas, iniciarTema } from "./components/Temas";
 
-const temaInicial = iniciarTema("abismo");
+const temaInicial = iniciarTema("ocelo");
 
 type Vista = "inicio" | "mapear" | "detectar" | "vulnerar";
 let seleccionado: string | null = null;
@@ -46,27 +47,30 @@ app.innerHTML = `
   </header>
   <div class="aviso-error" id="aviso-error" role="alert" hidden></div>
 
-  <main id="vista-inicio" class="inicio">
-    <section class="mando">
-      <div class="mando-bus" id="buscador-inicio"></div>
-      <div class="diag" id="diag" aria-live="polite"></div>
-    </section>
-    <section class="trabajo">
+  <main id="vista-inicio" class="pano">
+    <section class="escena" id="senal" aria-label="Mapa de la red"></section>
+
+    <section class="panel panel-izq" id="panel-izq" aria-label="Buscar y elegir dispositivos">
+      <div class="panel-bus" id="buscador-inicio"></div>
       <nav class="indice" id="indice" aria-label="Índice de dispositivos" tabindex="0"></nav>
-      <section class="mapa" aria-label="Mapa de la red">
-        <div class="mapa-cab">
-          <h2>Tu red desde el router</h2>
-          <p class="leyenda">
-            <span class="est-seguro">${ESTADO_FORMA.seguro} seguro</span>
-            <span class="est-alerta">${ESTADO_FORMA.alerta} revisar</span>
-            <span class="est-riesgo">${ESTADO_FORMA.riesgo} riesgo</span>
-            <span class="leyenda-nota">agrupados por tipo; más lejos del router, más latencia</span>
-          </p>
-        </div>
-        <div class="mapa-lienzo" id="senal"></div>
-      </section>
-      <aside class="lado" id="lado" aria-live="polite"></aside>
     </section>
+
+    <div class="cima" id="cima">
+      <div class="diag" id="diag" aria-live="polite"></div>
+    </div>
+
+    <aside class="panel panel-der" id="lado" aria-live="polite"></aside>
+
+    <div class="pie">
+      <button type="button" class="pliegue" id="pliegue-izq" aria-controls="panel-izq" aria-expanded="true" title="Mostrar u ocultar el índice ([)">Índice</button>
+      <p class="leyenda">
+        <span class="est-seguro">${ESTADO_FORMA.seguro} seguro</span>
+        <span class="est-alerta">${ESTADO_FORMA.alerta} revisar</span>
+        <span class="est-riesgo">${ESTADO_FORMA.riesgo} riesgo</span>
+        <span class="leyenda-nota">agrupados por tipo; más lejos del router, más latencia</span>
+      </p>
+      <button type="button" class="pliegue" id="pliegue-der" aria-controls="lado" aria-expanded="true" title="Mostrar u ocultar el panel derecho (])">Plan</button>
+    </div>
   </main>
 
   <main id="vista-escaneo" class="escaneo" hidden></main>
@@ -158,7 +162,7 @@ const GRUPOS: { est: Estado; titulo: string }[] = [
   { est: "alerta", titulo: "En alerta" },
   { est: "seguro", titulo: "Seguros" },
 ];
-const buscador = new Buscador("Busca un host por IP, nombre, MAC, puerto, servicio o CVE");
+const buscador = new Buscador("IP, nombre, MAC, puerto o CVE");
 document.getElementById("buscador-inicio")!.appendChild(buscador.getElement());
 let visibles: Device[] = [];
 
@@ -203,7 +207,7 @@ function pintarIndice() {
     </section>`;
   }).join("");
   el.querySelectorAll<HTMLButtonElement>(".fila").forEach((b) => {
-    b.addEventListener("click", () => seleccionar(b.dataset.ip === seleccionado ? null : b.dataset.ip!));
+    b.addEventListener("click", () => seleccionar(b.dataset.ip === seleccionado ? null : b.dataset.ip!, true));
     b.addEventListener("mouseenter", () => senal.resaltar(b.dataset.ip!));
     b.addEventListener("mouseleave", () => senal.resaltar(null));
   });
@@ -215,11 +219,11 @@ function moverSeleccion(paso: number) {
   if (!visibles.length) return;
   const i = visibles.findIndex((d) => d.ip === seleccionado);
   const sig = i < 0 ? (paso > 0 ? 0 : visibles.length - 1) : Math.max(0, Math.min(visibles.length - 1, i + paso));
-  seleccionar(visibles[sig].ip);
+  seleccionar(visibles[sig].ip, true);
 }
 document.addEventListener("keydown", (e) => {
   if (document.getElementById("vista-inicio")!.hidden) return;
-  const enIndice = (e.target as Element).closest?.(".indice, .mando-bus");
+  const enIndice = (e.target as Element).closest?.(".indice, .panel-bus");
   if (!enIndice || (e.key !== "ArrowDown" && e.key !== "ArrowUp")) return;
   e.preventDefault();
   moverSeleccion(e.key === "ArrowDown" ? 1 : -1);
@@ -236,18 +240,60 @@ const senal = new Senal(
 );
 document.getElementById("senal")!.appendChild(senal.getElement());
 
+// ── Paneles flotantes ───────────────────────────────────────────────────────
+// Cada panel se pliega con su botón o con [ y ]. Al cambiar lo que tapan, el mapa recalcula su
+// zona libre: si mostraba toda la red, la vuelve a encajar ahí.
+const escena = document.getElementById("senal")!;
+const panelIzq = document.getElementById("panel-izq")!;
+const panelDer = document.getElementById("lado")!;
+const cima = document.getElementById("cima")!;
+function margenes(animar = true) {
+  const e = escena.getBoundingClientRect();
+  if (!e.width) return;
+  const visible = (el: HTMLElement) => !document.body.classList.contains(el === panelIzq ? "sin-izq" : "sin-der");
+  const izq = visible(panelIzq) ? panelIzq.getBoundingClientRect().right - e.left + 8 : 0;
+  const der = visible(panelDer) ? e.right - panelDer.getBoundingClientRect().left + 8 : 0;
+  const arriba = cima.getBoundingClientRect().bottom - e.top + 4;
+  senal.setMargenes({ izq, der, arriba, abajo: 52 }, animar);
+}
+function plegar(lado: "izq" | "der", mostrar?: boolean) {
+  const clase = lado === "izq" ? "sin-izq" : "sin-der";
+  const ocultar = mostrar === undefined ? !document.body.classList.contains(clase) : !mostrar;
+  document.body.classList.toggle(clase, ocultar);
+  document.getElementById(`pliegue-${lado}`)!.setAttribute("aria-expanded", String(!ocultar));
+  margenes();
+}
+document.getElementById("pliegue-izq")!.addEventListener("click", () => plegar("izq"));
+document.getElementById("pliegue-der")!.addEventListener("click", () => plegar("der"));
+document.addEventListener("keydown", (e) => {
+  if (document.getElementById("vista-inicio")!.hidden || (e.target as Element).closest?.("input, textarea, select")) return;
+  if (e.key === "[") plegar("izq");
+  else if (e.key === "]") plegar("der");
+});
+new ResizeObserver(() => margenes(false)).observe(escena);
+
 let acciones: Accion[] = [];
-function seleccionar(ip: string | null) {
+// Al elegir un host, el panel derecho se abre con su ficha y el mapa lo lleva al centro de la
+// zona libre (si ya se ve bien y lo elegiste en el mapa, no se mueve nada).
+function seleccionar(ip: string | null, desdeFuera = false) {
+  const habia = seleccionado;
   seleccionado = ip;
   senal.select(ip);
   pintarIndice();
   pintarLado(true);
+  if (ip) plegar("der", true);
+  requestAnimationFrame(() => {
+    margenes(false);
+    if (ip && (desdeFuera || !senal.estaALaVista(ip))) senal.centrarEn(ip, (ultimo?.devices.length ?? 0) > 12 ? 1.6 : 1);
+    else if (!ip && habia) senal.encuadrar();
+  });
 }
 
 function pintarLado(animar = false) {
   const el = document.getElementById("lado")!;
   const d = ultimo?.devices.find((x) => x.ip === seleccionado) ?? null;
   document.body.classList.toggle("con-ficha", !!d);
+  document.getElementById("pliegue-der")!.textContent = d ? "Ficha" : "Plan";
   if (d) {
     el.innerHTML = `<p class="lado-tipo">${iconoSvg(tipoDe(d), "ico", 15)} ${TIPOS[tipoDe(d)].nombre}<span class="lado-resp">${respuestaSvg(d.latency || 0)} ${(d.latency || 0).toFixed(1)} ms</span></p>${fichaHost(d, { animar })}`;
     conectarFicha(el, () => seleccionar(null));
@@ -278,7 +324,7 @@ function pintarLado(animar = false) {
         : `<p class="vacio">No hay nada pendiente. Elige un dispositivo para ver su detalle.</p>`
     }
     <p class="lado-origen">Plan preliminar generado con reglas a partir del último escaneo.</p>`;
-  el.querySelectorAll<HTMLButtonElement>(".accion-h button").forEach((b) => b.addEventListener("click", () => seleccionar(b.dataset.ip!)));
+  el.querySelectorAll<HTMLButtonElement>(".accion-h button").forEach((b) => b.addEventListener("click", () => seleccionar(b.dataset.ip!, true)));
 }
 
 // ── Reactividad ─────────────────────────────────────────────────────────────
