@@ -67,8 +67,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 @keyframes deriva-b { to { transform: translate(-22vw, 30vh) scale(0.9); } }
 body.escaneando .fondo-b { opacity: 0.22 !important; animation-duration: 24s; }
 
-#app { height: 100vh; display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
-#app > main { min-height: 0; }
+/* Columna: barra, aviso (cuando lo hay) y la vista, que ocupa el resto y hace su propio scroll.
+   No es una cuadrícula de filas fijas: el aviso oculto no cuenta como fila y las desplazaría. */
+#app { height: 100vh; display: flex; flex-direction: column; }
+#app > main { flex: 1 1 0; min-height: 0; }
 
 /* ── Barra ──────────────────────────────────────────────────────────────── */
 .barra { display: flex; align-items: center; gap: 26px; padding: 0 22px; height: 58px; border-bottom: 1px solid var(--linea); background: rgba(10, 16, 23, 0.7); }
