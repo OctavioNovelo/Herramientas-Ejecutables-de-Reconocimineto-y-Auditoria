@@ -205,3 +205,27 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ── Selector de colores (components/Temas.ts) ─────────────────────────── */
+.tm { position: relative; }
+.tm-boton { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-radius: var(--r); color: var(--tinta-2); font-size: var(--t-s); }
+.tm-boton:hover, .tm-boton[aria-expanded="true"] { color: var(--tinta); background: var(--panel-2); }
+.tm-muestra { display: inline-flex; flex: none; }
+.tm-muestra i { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--panel); }
+.tm-muestra i + i { margin-left: -4px; }
+.tm-muestra i:first-child { box-shadow: 0 0 0 1px var(--linea); }
+.tm-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; width: 290px; padding: 6px; border-radius: calc(var(--r) + 4px); border: 1px solid var(--linea); background: var(--panel); box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35); display: grid; gap: 2px; }
+.tm-op { display: grid; grid-template-columns: auto 1fr; grid-template-areas: "m n" "m t"; gap: 0 10px; align-items: center; text-align: left; padding: 8px 10px; border-radius: var(--r); }
+.tm-op .tm-muestra { grid-area: m; }
+.tm-op .tm-muestra i { width: 16px; height: 16px; }
+.tm-nombre { grid-area: n; font-weight: 600; font-size: var(--t-s); }
+.tm-nota { grid-area: t; color: var(--tinta-3); font-size: var(--t-xs); }
+.tm-op:hover, .tm-op:focus-visible { background: var(--panel-2); }
+.tm-op[aria-checked="true"] { background: var(--panel-3); }
+.tm-op[aria-checked="true"] .tm-nombre { color: var(--pluma); }
+
+/* Barras de respuesta (latencia), como las de la señal del wifi */
+.resp { display: inline-flex; align-items: flex-end; gap: 1.5px; height: 11px; flex: none; }
+.resp i { width: 3px; border-radius: 1px; background: var(--linea); }
+.resp i:nth-child(1) { height: 30%; } .resp i:nth-child(2) { height: 55%; } .resp i:nth-child(3) { height: 78%; } .resp i:nth-child(4) { height: 100%; }
+.resp i.on { background: var(--tinta-2); }

@@ -81,3 +81,14 @@ export function contarHasta(el: HTMLElement, destino: number, ms = 700) {
     el.textContent = String(destino);
   }, ms + 150);
 }
+
+// Calidad de respuesta según la latencia, en barras como las del wifi (4 = respuesta inmediata).
+// Mide lo rápido que contesta el equipo, no la intensidad de la señal inalámbrica.
+export function barrasRespuesta(ms: number): number {
+  return ms <= 2 ? 4 : ms <= 8 ? 3 : ms <= 30 ? 2 : 1;
+}
+export function respuestaSvg(ms: number): string {
+  const n = barrasRespuesta(ms);
+  const texto = ["", "respuesta lenta", "respuesta regular", "respuesta buena", "respuesta inmediata"][n];
+  return `<span class="resp" role="img" aria-label="${texto}, ${ms.toFixed(1)} ms" title="${texto}, ${ms.toFixed(1)} ms">${[1, 2, 3, 4].map((i) => `<i${i <= n ? ' class="on"' : ""}></i>`).join("")}</span>`;
+}

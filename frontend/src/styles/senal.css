@@ -5,35 +5,7 @@
    ondas del router son tres círculos animados con CSS. */
 
 :root {
-  --fondo: #161c23;
-  --panel: #1b222b;
-  --panel-2: #222b35;
-  --panel-3: #2a3440;
-  --linea: #2f3a47;
-  --linea-tenue: #252e39;
-  --tinta: #edf1f5;
-  --tinta-2: #a6b1be;
-  --tinta-3: #808d9b;
-
-  --pluma: #32d9ba;
-  --cian: #1ba1bf;
-  --cobalto: #0f6dbf;
-  --cresta: #e0b65a;
-  --seguro: var(--pluma);
-  --alerta: var(--cresta);
-  --riesgo: #f2735c;
-  --sin-datos: var(--tinta-2);
-
-  /* Láminas al estilo F, teñidas de azul sobre la pizarra */
-  --placa-top: #243549;
-  --placa-izq: #1b2838;
-  --placa-der: #141f2c;
-  --placa-hover: #2e4661;
-  --placa-trazo: #d6e3f0;
-  --bloque: #e9f1f8;
-  --bloque-l: #b7c8da;
-  --bloque-r: #89a0b8;
-
+  /* Los colores vienen de styles/temas.css (paleta elegida en la barra). */
   --sans: "Onest Variable", system-ui, sans-serif;
   --mono: "Martian Mono Variable", ui-monospace, monospace;
   --t-xs: 11.5px;
@@ -43,7 +15,6 @@
   --t-xl: 20.2px;
   --t-xxl: 29px;
   --r: 8px;
-  color-scheme: dark;
 }
 
 .fh-ip, .fila-ip, .lecturas dd { font-stretch: 80%; }
@@ -51,15 +22,15 @@
 /* Fondo: retícula de puntos con dos luces de la marca. Se desplaza a saltos (cada ~0.6 s) para
    no repintar la pantalla completa en cada cuadro. */
 .fondo { position: fixed; inset: 0; z-index: -1; background-color: var(--fondo);
-  background-image: radial-gradient(rgba(170, 196, 224, 0.14) 1px, transparent 1.5px);
+  background-image: radial-gradient(var(--punto) 1px, transparent 1.5px);
   background-size: 22px 22px; animation: deriva 140s steps(220) infinite; }
 .fondo::before { content: ""; position: absolute; inset: 0; background:
-    radial-gradient(50% 40% at 50% 45%, rgba(15, 109, 191, 0.16), transparent 70%),
-    radial-gradient(40% 40% at 100% 100%, rgba(50, 217, 186, 0.08), transparent 70%); }
+    radial-gradient(50% 40% at 50% 45%, var(--luz-1), transparent 70%),
+    radial-gradient(40% 40% at 100% 100%, var(--luz-2), transparent 70%); }
 @keyframes deriva { to { background-position: 220px 110px; } }
 
 /* ── Barra ──────────────────────────────────────────────────────────────── */
-.barra { display: flex; align-items: center; gap: 24px; padding: 0 20px; height: 56px; border-bottom: 1px solid var(--linea); background: rgba(22, 28, 35, 0.88); }
+.barra { display: flex; align-items: center; gap: 24px; padding: 0 20px; height: 56px; border-bottom: 1px solid var(--linea); background: var(--barra); }
 .marca { display: flex; align-items: center; gap: 9px; }
 .marca img { width: 32px; height: auto; display: block; }
 .marca span { font: 700 17px / 1 var(--sans); letter-spacing: 0.06em; }
@@ -70,9 +41,9 @@
 .nav button.is-activo { color: var(--tinta); background: var(--panel-3); }
 .nav .es-futuro { color: var(--tinta-3); }
 .pronto { font: 500 10px / 1 var(--sans); padding: 3px 6px; border-radius: 999px; background: var(--panel-2); color: var(--tinta-3); }
-.control { margin-left: auto; }
-.btn-pri { padding: 8px 16px; border-radius: var(--r); background: var(--pluma); color: #062a24; font-weight: 650; }
-.btn-pri:hover { background: #5be4ca; }
+.control { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.btn-pri { padding: 8px 16px; border-radius: var(--r); background: var(--accion); color: var(--accion-tinta); font-weight: 650; }
+.btn-pri:hover { background: var(--accion-hover); }
 .btn-sec { padding: 7px 14px; border-radius: var(--r); border: 1px solid var(--linea); }
 .btn-sec:hover { border-color: var(--tinta-3); }
 .btn-cancelar:hover { border-color: var(--riesgo); color: var(--riesgo); }
@@ -106,7 +77,8 @@ body.con-ficha .trabajo { grid-template-columns: 300px minmax(0, 1fr) 540px; }
 .grupo ul { list-style: none; display: grid; gap: 2px; }
 .fila { width: 100%; text-align: left; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; grid-template-areas: "ico ip h" "ico nombre n"; gap: 1px 10px; align-items: center; padding: 7px 10px 7px 8px; border-radius: 6px; position: relative; }
 .fila::before { content: ""; position: absolute; left: 1px; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--est); opacity: 0; }
-.fila:hover { background: var(--panel-2); }
+.fila:hover, .fila.is-resaltada { background: var(--panel-2); }
+.fila-nombre .resp { margin-right: 6px; vertical-align: -1px; }
 .fila.is-sel { background: var(--panel-3); }
 .fila.is-sel::before { opacity: 1; }
 .fila-ico { grid-area: ico; width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; background: var(--panel-2); color: var(--tinta-2); }
@@ -130,10 +102,10 @@ body.con-ficha .trabajo { grid-template-columns: 300px minmax(0, 1fr) 540px; }
 /* La señal (components/Senal.ts) */
 .senal { min-height: 0; display: grid; }
 .senal svg { width: 100%; height: 100%; display: block; }
-.sn-ondas circle { fill: none; stroke: var(--cian); stroke-width: 1.2; opacity: 0; transform-box: fill-box; transform-origin: center; animation: onda 6s ease-out infinite; animation-delay: calc(var(--k) * -2s); }
+.sn-ondas circle { fill: none; stroke: var(--onda); stroke-width: 1.2; opacity: 0; transform-box: fill-box; transform-origin: center; animation: onda 6s ease-out infinite; animation-delay: calc(var(--k) * -2s); }
 .senal.is-scanning .sn-ondas circle { animation-duration: 2.4s; animation-delay: calc(var(--k) * -0.8s); stroke: var(--pluma); }
 @keyframes onda { from { transform: scale(0.12); opacity: 0.55; } to { transform: scale(1); opacity: 0; } }
-.sn-banda { fill: none; stroke: rgba(160, 186, 214, 0.13); stroke-dasharray: 2 5; }
+.sn-banda { fill: none; stroke: var(--banda); stroke-dasharray: 2 5; }
 .sn-banda-txt { font: 500 11px var(--mono); font-stretch: 80%; fill: var(--tinta-3); }
 .sn-sector { fill: none; stroke: var(--linea); stroke-width: 3; stroke-linecap: round; }
 .sn-sector-txt { font: 600 13.5px var(--sans); fill: var(--tinta-2); }
@@ -162,14 +134,36 @@ body.con-ficha .trabajo { grid-template-columns: 300px minmax(0, 1fr) 540px; }
 .sn-nodo.is-selected .sn-ico { color: var(--tinta); }
 .sn-nodo.is-fuera { opacity: 0.15; }
 svg.con-seleccion .sn-nodo:not(.is-selected):not(:hover) .sn-etq { opacity: 0.45; }
+.sn-fondo { fill: transparent; }
+.senal { position: relative; }
+.senal svg { cursor: grab; touch-action: none; }
+.senal.is-arrastrando svg { cursor: grabbing; }
+.sn-nodo, .sn-nodo * { cursor: pointer; }
+.sn-zoom { position: absolute; right: 12px; bottom: 12px; display: grid; border: 1px solid var(--linea); border-radius: var(--r); background: var(--panel); overflow: hidden; }
+.sn-zoom button { width: 32px; height: 30px; display: grid; place-items: center; color: var(--tinta-2); }
+.sn-zoom button + button { border-top: 1px solid var(--linea); }
+.sn-zoom button:hover { color: var(--tinta); background: var(--panel-2); }
+.sn-zoom svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; cursor: pointer; }
+.sn-zoom [data-z="encuadrar"] { display: none; }
+.senal.is-acercado .sn-zoom [data-z="encuadrar"] { display: grid; }
+.sn-nodo.is-resaltado .sn-halo { opacity: 0.8; }
+.sn-nodo.is-resaltado .sn-etq.is-oculta { display: inline; }
+.sn-nodo.is-resaltado .sn-disco { fill: var(--panel-3); }
+.sn-enlace.is-resaltado { stroke: var(--est); opacity: 0.9; }
+.sn-corona path { fill: none; stroke: var(--tinta-2); stroke-width: 3.5; stroke-linecap: butt; }
+.sn-corona path.con-h { stroke: var(--riesgo); }
+.sn-corona path.filtrado { stroke: var(--tinta-3); stroke-dasharray: 1.5 1.5; }
+.sn-nodo.is-selected .sn-halo { r: 31px; stroke-width: 1.4; }
+.sn-hub.is-selected .sn-halo { r: 41px; }
 .sn-vacio { font: 400 14px var(--sans); fill: var(--tinta-3); }
 
 /* Columna derecha */
-.lado { min-height: 0; overflow: auto; border-left: 1px solid var(--linea); padding: 16px 20px 24px; background: rgba(27, 34, 43, 0.65); }
+.lado { min-height: 0; overflow: auto; border-left: 1px solid var(--linea); padding: 16px 20px 24px; background: color-mix(in srgb, var(--panel) 65%, transparent); }
 .lado-cab { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
 .lado-t { font-size: var(--t-l); font-weight: 650; }
 .lado-cab span { color: var(--tinta-3); font: 500 var(--t-s) var(--mono); }
 .lado-origen { margin-top: 14px; color: var(--tinta-3); font-size: var(--t-xs); }
+.lado-resp { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); }
 .lado-tipo { display: flex; align-items: center; gap: 6px; color: var(--tinta-3); font-size: var(--t-xs); margin-bottom: 4px; }
 .acciones { list-style: none; display: grid; gap: 8px; }
 .accion { border: 1px solid var(--linea); border-radius: 10px; background: var(--panel); border-left: 3px solid var(--est); }

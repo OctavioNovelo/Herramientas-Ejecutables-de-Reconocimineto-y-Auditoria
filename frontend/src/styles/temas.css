@@ -1,0 +1,90 @@
+/* HERA, ronda final: paletas intercambiables. Cada dirección define su tipografía y su diseño;
+   los colores salen de aquí y se eligen en vivo desde la barra (components/Temas.ts).
+   Reglas comunes a todas las paletas:
+   - El color de estado (seguro, alerta, riesgo) nunca se usa como adorno.
+   - El acento (--pluma) marca lo que se puede tocar y el foco; no significa "seguro".
+   - --tinta-3 cumple 4.5:1 sobre --fondo. */
+
+/* Pizarra: la de G y H, como referencia. */
+:root[data-tema="pizarra"] {
+  --fondo: #161c23; --panel: #1b222b; --panel-2: #222b35; --panel-3: #2a3440;
+  --linea: #2f3a47; --linea-tenue: #252e39;
+  --tinta: #edf1f5; --tinta-2: #a6b1be; --tinta-3: #808d9b;
+  --pluma: #32d9ba; --cian: #1ba1bf; --cobalto: #0f6dbf;
+  --seguro: #32d9ba; --alerta: #e0b65a; --riesgo: #f2735c; --sin-datos: var(--tinta-2);
+  --accion: #32d9ba; --accion-tinta: #062a24; --accion-hover: #5be4ca;
+  --barra: rgba(22, 28, 35, 0.9); --punto: rgba(170, 196, 224, 0.14);
+  --luz-1: rgba(15, 109, 191, 0.16); --luz-2: rgba(50, 217, 186, 0.08);
+  --onda: var(--cian); --banda: rgba(160, 186, 214, 0.13);
+  --placa-top: #243549; --placa-izq: #1b2838; --placa-der: #141f2c; --placa-hover: #2e4661; --placa-trazo: #d6e3f0;
+  --bloque: #e9f1f8; --bloque-l: #b7c8da; --bloque-r: #89a0b8;
+  color-scheme: dark;
+}
+
+/* Abismo: azul de medianoche que sale del cobalto del logo. El acento es el azul claro de la
+   pluma; el verde queda solo para "seguro". */
+:root[data-tema="abismo"] {
+  --fondo: #0b1220; --panel: #101a2b; --panel-2: #162237; --panel-3: #1e2c45;
+  --linea: #23324d; --linea-tenue: #19253a;
+  --tinta: #e7eef9; --tinta-2: #a0b2cc; --tinta-3: #7a8daa;
+  --pluma: #5ab4f5; --cian: #3d9fe0; --cobalto: #0f6dbf;
+  --seguro: #45d3a4; --alerta: #f4b94f; --riesgo: #ff6b6b; --sin-datos: var(--tinta-2);
+  --accion: #4aa8f0; --accion-tinta: #03111f; --accion-hover: #78c0f7;
+  --barra: rgba(11, 18, 32, 0.92); --punto: rgba(120, 160, 220, 0.13);
+  --luz-1: rgba(15, 109, 191, 0.24); --luz-2: rgba(90, 180, 245, 0.07);
+  --onda: #3d9fe0; --banda: rgba(130, 170, 230, 0.14);
+  --placa-top: #1a2c4a; --placa-izq: #132238; --placa-der: #0e1a2c; --placa-hover: #25406b; --placa-trazo: #cfe0f6;
+  --bloque: #eaf3ff; --bloque-l: #b2c7e6; --bloque-r: #7f98bd;
+  color-scheme: dark;
+}
+
+/* Grafito: neutro, sin tinte. El único color en pantalla es información (estado o
+   selección); el acento es casi blanco, como en las herramientas de consola. */
+:root[data-tema="grafito"] {
+  --fondo: #131416; --panel: #191a1d; --panel-2: #212226; --panel-3: #2a2c31;
+  --linea: #303238; --linea-tenue: #222428;
+  --tinta: #ededee; --tinta-2: #a9acb2; --tinta-3: #85888f;
+  --pluma: #e6e7ea; --cian: #9da1a9; --cobalto: #6c717a;
+  --seguro: #5fca8e; --alerta: #e9b04a; --riesgo: #f2675a; --sin-datos: var(--tinta-2);
+  --accion: #ececee; --accion-tinta: #131416; --accion-hover: #ffffff;
+  --barra: rgba(19, 20, 22, 0.94); --punto: rgba(255, 255, 255, 0.07);
+  --luz-1: rgba(255, 255, 255, 0.035); --luz-2: rgba(255, 255, 255, 0.02);
+  --onda: #8b8f97; --banda: rgba(255, 255, 255, 0.1);
+  --placa-top: #2a2c31; --placa-izq: #212226; --placa-der: #1a1b1e; --placa-hover: #393c43; --placa-trazo: #d9dadd;
+  --bloque: #f4f4f5; --bloque-l: #c3c5ca; --bloque-r: #94979e;
+  color-scheme: dark;
+}
+
+/* Ocelo: el "ojo" de la pluma del pavo real. Fondo ciruela profundo, acento turquesa del logo,
+   alerta dorada y riesgo rosa. */
+:root[data-tema="ocelo"] {
+  --fondo: #14101c; --panel: #1a1524; --panel-2: #231c30; --panel-3: #2d253c;
+  --linea: #362c47; --linea-tenue: #251e32;
+  --tinta: #f2eef8; --tinta-2: #b7adc9; --tinta-3: #9086a6;
+  --pluma: #2bcac7; --cian: #1b9fc8; --cobalto: #0e71c6;
+  --seguro: #8fd46e; --alerta: #f0c35c; --riesgo: #ff6b8b; --sin-datos: var(--tinta-2);
+  --accion: #2bcac7; --accion-tinta: #04201f; --accion-hover: #5bdbd8;
+  --barra: rgba(20, 16, 28, 0.92); --punto: rgba(200, 180, 240, 0.1);
+  --luz-1: rgba(14, 113, 198, 0.2); --luz-2: rgba(43, 202, 199, 0.08);
+  --onda: #2bcac7; --banda: rgba(190, 170, 230, 0.13);
+  --placa-top: #2a2140; --placa-izq: #201933; --placa-der: #191428; --placa-hover: #3b2f5a; --placa-trazo: #e4dcf3;
+  --bloque: #f6f2ff; --bloque-l: #c9bfe0; --bloque-r: #9a8ebb;
+  color-scheme: dark;
+}
+
+/* Niebla: claro, pero gris azulado y no blanco (B se sentía demasiado blanco). Los estados se
+   oscurecen para mantener el contraste. */
+:root[data-tema="niebla"] {
+  --fondo: #d3dae3; --panel: #dfe5ec; --panel-2: #e9edf2; --panel-3: #f4f6f9;
+  --linea: #b4bfcc; --linea-tenue: #c7d0da;
+  --tinta: #121e2d; --tinta-2: #3d4d63; --tinta-3: #4f5d71;
+  --pluma: #0f6dbf; --cian: #117dbf; --cobalto: #0f6dbf;
+  --seguro: #0e7d5a; --alerta: #8f5c00; --riesgo: #bb3426; --sin-datos: var(--tinta-2);
+  --accion: #0f6dbf; --accion-tinta: #ffffff; --accion-hover: #0c5ea6;
+  --barra: rgba(211, 218, 227, 0.94); --punto: rgba(30, 55, 90, 0.16);
+  --luz-1: rgba(255, 255, 255, 0.4); --luz-2: rgba(15, 109, 191, 0.08);
+  --onda: #117dbf; --banda: rgba(30, 55, 90, 0.2);
+  --placa-top: #c2cddb; --placa-izq: #acbaca; --placa-der: #98a7b9; --placa-hover: #d5dee9; --placa-trazo: #2b3c51;
+  --bloque: #1f3047; --bloque-l: #3a4d66; --bloque-r: #2a3b52;
+  color-scheme: light;
+}
