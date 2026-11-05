@@ -36,11 +36,16 @@ interface Nodo extends SimulationNodeDatum {
   r: number;
   ang: number;
 }
-interface Vista {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
+interface Zoom {
+  s: number;
+  tx: number;
+  ty: number;
+}
+interface Margenes {
+  izq: number;
+  der: number;
+  arriba: number;
+  abajo: number;
 }
 
 function radioLatencia(ms: number, maxMs: number): number {
@@ -101,10 +106,12 @@ export class Senal {
   private seleccionado: string | null = null;
   private onSelect: (ip: string) => void;
   private onHover: (ip: string | null) => void;
-  private vista: Vista = { ...BASE };
+  private z: Zoom = { s: 1, tx: -BASE.x, ty: -BASE.y };
+  private ajustado = true;
+  private margenes: Margenes = { izq: 0, der: 0, arriba: 0, abajo: 0 };
   private relojEtq: number | null = null;
   private animacion: number | null = null;
-  private arrastre: { id: number; x: number; y: number; vista: Vista; movio: boolean } | null = null;
+  private arrastre: { id: number; x: number; y: number; z: Zoom; movio: boolean } | null = null;
   private recienArrastrado = false;
   private porIp = new Map<string, Device>();
 
@@ -115,6 +122,7 @@ export class Senal {
     this.el.className = "senal";
     this.svg = document.createElementNS(NS, "svg");
     this.svg.setAttribute("viewBox", `${BASE.x} ${BASE.y} ${BASE.w} ${BASE.h}`);
+    this.svg.setAttribute("preserveAspectRatio", "none");
     this.svg.setAttribute("role", "group");
     this.svg.setAttribute("tabindex", "-1");
     this.svg.setAttribute("aria-label", "Mapa de la red: dispositivos agrupados por tipo alrededor del router; más lejos, más latencia. Rueda o + y − para acercar, arrastra para moverte, 0 para encuadrar.");
@@ -134,7 +142,11 @@ export class Senal {
     });
     this.el.appendChild(zoom);
     this.conectarZoom();
-    new ResizeObserver(() => this.aplicarVista(true)).observe(this.svg);
+    // Al cambiar el tamaño de la ventana: si se veía toda la red, se vuelve a encajar.
+    new ResizeObserver(() => {
+      if (this.ajustado) this.z = this.ajuste();
+      this.aplicarVista(true);
+    }).observe(this.svg);
   }
 
   getElement() {
@@ -174,31 +186,40 @@ export class Senal {
     this.svg.querySelectorAll<SVGLineElement>(".sn-enlace").forEach((l) => l.classList.toggle("is-fuera", !!ips && !ips.has(l.dataset.ip!)));
   }
 
-  // Posición de un nodo en coordenadas del mapa (para centrarlo desde fuera).
-  posicion(ip: string): { x: number; y: number } | null {
-    const g = this.svg.querySelector<SVGGElement>(`.sn-nodo[data-ip="${CSS.escape(ip)}"]`);
-    return g ? { x: +g.dataset.x!, y: +g.dataset.y! } : null;
+  // Espacio del lienzo que tapan paneles flotantes (en píxeles). "Ver toda la red" encaja el
+  // mapa en lo que queda libre, y elegir un host lo lleva al centro de esa zona.
+  setMargenes(m: Partial<Margenes>, animar = true) {
+    this.margenes = { ...this.margenes, ...m };
+    if (this.ajustado) this.irA(this.ajuste(), animar);
   }
 
-  // Lleva el nodo al punto (fx, fy) del lienzo, expresado en fracción del ancho y alto visibles
-  // (0.5, 0.5 = el centro). Sirve para dejarlo en la parte del mapa que no tapa un panel.
-  centrarEn(ip: string, fx = 0.5, fy = 0.5, k?: number) {
-    const p = this.posicion(ip);
-    if (!p) return;
-    const kNuevo = Math.max(this.k(), k ?? 1);
-    const { w, h } = this.medidaVista(kNuevo);
-    // Con preserveAspectRatio "meet", la caja visible real es mayor que el viewBox en un eje.
-    const caja = this.svg.getBoundingClientRect();
-    const escala = Math.min(caja.width / w, caja.height / h) || 1;
-    const vw = caja.width / escala;
-    const vh = caja.height / escala;
-    const x = p.x - fx * vw + (vw - w) / 2;
-    const y = p.y - fy * vh + (vh - h) / 2;
-    this.irA({ x, y, w, h }, true);
+  // Lleva el nodo al centro de la zona libre, acercando hasta kMin si hace falta.
+  centrarEn(ip: string, kMin = 1) {
+    const g = this.svg.querySelector<SVGGElement>(`.sn-nodo[data-ip="${CSS.escape(ip)}"]`);
+    if (!g) return;
+    const { w, h } = this.tam();
+    const { s0 } = this.ajuste();
+    const s = Math.max(this.z.s, kMin * s0);
+    const cx = this.margenes.izq + (w - this.margenes.izq - this.margenes.der) / 2;
+    const cy = this.margenes.arriba + (h - this.margenes.arriba - this.margenes.abajo) / 2;
+    this.ajustado = false;
+    this.irA({ s, tx: cx - +g.dataset.x! * s, ty: cy - +g.dataset.y! * s }, true);
+  }
+
+  // ¿El nodo se ve en la zona libre (no tapado por un panel ni fuera del lienzo)?
+  estaALaVista(ip: string): boolean {
+    const g = this.svg.querySelector<SVGGElement>(`.sn-nodo[data-ip="${CSS.escape(ip)}"]`);
+    if (!g) return false;
+    const { w, h } = this.tam();
+    const x = +g.dataset.x! * this.z.s + this.z.tx;
+    const y = +g.dataset.y! * this.z.s + this.z.ty;
+    const m = this.margenes;
+    return x > m.izq + 30 && x < w - m.der - 30 && y > m.arriba + 30 && y < h - m.abajo - 30;
   }
 
   encuadrar() {
-    this.irA({ ...BASE }, true);
+    this.ajustado = true;
+    this.irA(this.ajuste(), true);
   }
 
   update(devices: Device[], red: string) {
@@ -334,79 +355,90 @@ export class Senal {
   }
 
   // ── Zoom ──────────────────────────────────────────────────────────────────
-  private k() {
-    return BASE.w / this.vista.w;
-  }
-
-  // Escala de nodos y rótulos: 1/zoom para que conserven su tamaño al acercarse, y un poco más
-  // si el lienzo es chico, para que el texto no baje de un tamaño legible.
-  private escalaCuerpo() {
+  // El estado es una escala (píxeles por unidad del dibujo) y un desplazamiento en píxeles; el
+  // viewBox se deduce de eso y del tamaño real del lienzo, así que nunca hay bandas vacías.
+  private tam() {
     const r = this.svg.getBoundingClientRect();
-    const ppu = r.width ? Math.min(r.width / BASE.w, r.height / BASE.h) : 1;
-    return Math.min(1.3, Math.max(1, 0.95 / ppu)) / this.k();
+    return r.width > 0 && r.height > 0 ? { w: r.width, h: r.height } : { w: BASE.w, h: BASE.h };
   }
 
-  private medidaVista(k: number) {
-    const kk = Math.max(1, Math.min(K_MAX, k));
-    return { w: BASE.w / kk, h: BASE.h / kk };
+  // Escala y desplazamiento que encajan toda la red en la zona libre.
+  private ajuste(): Zoom & { s0: number } {
+    const { w, h } = this.tam();
+    const m = this.margenes;
+    const fw = Math.max(120, w - m.izq - m.der);
+    const fh = Math.max(120, h - m.arriba - m.abajo);
+    const s0 = Math.min(fw / BASE.w, fh / BASE.h);
+    return { s: s0, s0, tx: m.izq + (fw - BASE.w * s0) / 2 - BASE.x * s0, ty: m.arriba + (fh - BASE.h * s0) / 2 - BASE.y * s0 };
   }
 
-  private limitar(v: Vista): Vista {
-    const w = Math.min(BASE.w, Math.max(BASE.w / K_MAX, v.w));
-    const h = (w * BASE.h) / BASE.w;
-    const margen = 0.15;
-    const x = Math.max(BASE.x - BASE.w * margen, Math.min(BASE.x + BASE.w * (1 + margen) - w, v.x));
-    const y = Math.max(BASE.y - BASE.h * margen, Math.min(BASE.y + BASE.h * (1 + margen) - h, v.y));
-    return { x, y, w, h };
+  private limitar(z: Zoom): Zoom {
+    const { w, h } = this.tam();
+    const s0 = this.ajuste().s0;
+    const s = Math.max(s0, Math.min(s0 * K_MAX, z.s));
+    // La red no puede salir del todo: al menos un 30 % del lienzo la sigue mostrando.
+    const tx = Math.min(w * 0.7 - BASE.x * s, Math.max(w * 0.3 - (BASE.x + BASE.w) * s, z.tx));
+    const ty = Math.min(h * 0.7 - BASE.y * s, Math.max(h * 0.3 - (BASE.y + BASE.h) * s, z.ty));
+    return { s, tx, ty };
   }
 
-  private irA(destino: Vista, animar: boolean) {
-    const fin = this.limitar(destino);
+  private irA(destino: Zoom, animar: boolean) {
+    const fin = this.ajustado ? destino : this.limitar(destino);
     if (this.animacion !== null) cancelAnimationFrame(this.animacion);
     this.animacion = null;
     const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (!animar || quieto) {
-      this.vista = fin;
+      this.z = { s: fin.s, tx: fin.tx, ty: fin.ty };
       this.aplicarVista();
       return;
     }
     // Transición corta y solo cuando la pide el usuario (botón, elegir un host).
-    const ini = { ...this.vista };
+    const ini = { ...this.z };
     const t0 = performance.now();
     const DUR = 260;
     const paso = (t: number) => {
       const p = Math.min(1, (t - t0) / DUR);
       const e = 1 - Math.pow(1 - p, 3);
-      this.vista = { x: ini.x + (fin.x - ini.x) * e, y: ini.y + (fin.y - ini.y) * e, w: ini.w + (fin.w - ini.w) * e, h: ini.h + (fin.h - ini.h) * e };
+      this.z = { s: ini.s + (fin.s - ini.s) * e, tx: ini.tx + (fin.tx - ini.tx) * e, ty: ini.ty + (fin.ty - ini.ty) * e };
       this.aplicarVista(p < 1);
       this.animacion = p < 1 ? requestAnimationFrame(paso) : null;
     };
     this.animacion = requestAnimationFrame(paso);
   }
 
-  private zoomEn(factor: number, sx = this.vista.x + this.vista.w / 2, sy = this.vista.y + this.vista.h / 2, animar = true) {
-    const w = this.vista.w / factor;
-    const h = this.vista.h / factor;
-    const v = { x: sx - ((sx - this.vista.x) * w) / this.vista.w, y: sy - ((sy - this.vista.y) * h) / this.vista.h, w, h };
-    this.irA(v, animar);
+  // Acerca o aleja manteniendo fijo el punto (px, py) del lienzo (por defecto, el centro libre).
+  private zoomEn(factor: number, px?: number, py?: number, animar = true) {
+    const { w, h } = this.tam();
+    const m = this.margenes;
+    const x = px ?? m.izq + (w - m.izq - m.der) / 2;
+    const y = py ?? m.arriba + (h - m.arriba - m.abajo) / 2;
+    const s0 = this.ajuste().s0;
+    const s = Math.max(s0, Math.min(s0 * K_MAX, this.z.s * factor));
+    if (s <= s0 * 1.001 && factor < 1) {
+      this.encuadrar();
+      return;
+    }
+    this.ajustado = false;
+    this.irA({ s, tx: x - ((x - this.z.tx) * s) / this.z.s, ty: y - ((y - this.z.ty) * s) / this.z.s }, animar);
   }
 
-  // en_curso: durante el gesto solo se mueve el viewBox; las etiquetas se recalculan al final.
+  // enCurso: durante el gesto solo se mueve el viewBox; las etiquetas se recalculan al final.
   private aplicarVista(enCurso = false) {
-    const { x, y, w, h } = this.vista;
-    this.svg.setAttribute("viewBox", `${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)}`);
+    const { w, h } = this.tam();
+    const { s, tx, ty } = this.z;
+    this.svg.setAttribute("viewBox", `${(-tx / s).toFixed(2)} ${(-ty / s).toFixed(2)} ${(w / s).toFixed(2)} ${(h / s).toFixed(2)}`);
     const ik = this.escalaCuerpo().toFixed(4);
     this.svg.querySelectorAll<SVGGElement>(".sn-cuerpo").forEach((g) => g.setAttribute("transform", `scale(${ik})`));
-    this.el.classList.toggle("is-acercado", this.k() > 1.02);
+    this.el.classList.toggle("is-acercado", !this.ajustado);
     if (this.relojEtq !== null) clearTimeout(this.relojEtq);
     this.relojEtq = window.setTimeout(() => this.ocultarEtiquetasEncimadas(), enCurso ? 140 : 0);
   }
 
-  private puntoSvg(e: { clientX: number; clientY: number }) {
-    const m = this.svg.getScreenCTM();
-    if (!m) return { x: this.vista.x + this.vista.w / 2, y: this.vista.y + this.vista.h / 2 };
-    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
-    return { x: p.x, y: p.y };
+  // Tamaño de nodos y rótulos en pantalla: fijo al acercarse (así la red se abre y caben más
+  // nombres) y nunca menor de 0.95 px por unidad, para que el texto siga siendo legible.
+  private escalaCuerpo() {
+    const s0 = this.ajuste().s0;
+    return Math.min(1.3 * s0, Math.max(s0, 0.95)) / this.z.s;
   }
 
   private conectarZoom() {
@@ -414,14 +446,14 @@ export class Senal {
       "wheel",
       (e) => {
         e.preventDefault();
-        const p = this.puntoSvg(e);
-        this.zoomEn(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0018)), p.x, p.y, false);
+        const r = this.svg.getBoundingClientRect();
+        this.zoomEn(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0018)), e.clientX - r.left, e.clientY - r.top, false);
       },
       { passive: false }
     );
     this.svg.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
-      this.arrastre = { id: e.pointerId, x: e.clientX, y: e.clientY, vista: { ...this.vista }, movio: false };
+      this.arrastre = { id: e.pointerId, x: e.clientX, y: e.clientY, z: { ...this.z }, movio: false };
     });
     this.svg.addEventListener("pointermove", (e) => {
       const a = this.arrastre;
@@ -434,9 +466,8 @@ export class Senal {
         this.svg.setPointerCapture(e.pointerId);
         this.el.classList.add("is-arrastrando");
       }
-      const m = this.svg.getScreenCTM();
-      const esc = m ? m.a : 1;
-      this.vista = this.limitar({ ...a.vista, x: a.vista.x - dx / esc, y: a.vista.y - dy / esc });
+      this.ajustado = false;
+      this.z = this.limitar({ s: a.z.s, tx: a.z.tx + dx, ty: a.z.ty + dy });
       this.aplicarVista(true);
     });
     const soltar = (e: PointerEvent) => {
@@ -454,8 +485,8 @@ export class Senal {
     this.svg.addEventListener("pointercancel", soltar);
     this.svg.addEventListener("dblclick", (e) => {
       if ((e.target as Element).closest(".sn-nodo")) return;
-      const p = this.puntoSvg(e);
-      this.zoomEn(e.shiftKey ? 1 / 2 : 2, p.x, p.y);
+      const r = this.svg.getBoundingClientRect();
+      this.zoomEn(e.shiftKey ? 1 / 2 : 2, e.clientX - r.left, e.clientY - r.top);
     });
     this.el.addEventListener("keydown", (e) => {
       if ((e.target as Element).closest("input, textarea, select")) return;
