@@ -7,6 +7,7 @@ import "@fontsource-variable/onest";
 import "@fontsource-variable/martian-mono/wdth.css";
 import "./styles/comun.css";
 import "./styles/senal.css";
+import "./styles/temas.css";
 import logo from "./assets/hera-logo.png";
 
 import { scanState, AppState } from "./state/scanState";
@@ -18,8 +19,11 @@ import { Buscador } from "./components/Buscador";
 import { fichaHost, conectarFicha } from "./components/FichaHost";
 import { generarPlan, PRIORIDAD_TEXTO, Accion } from "./synthesis/plan";
 import type { Device } from "./api/heraApi";
-import { esc, estadoRed, estadoHost, ESTADO_FORMA, formatoReloj, contarHasta, Estado } from "./utils/security";
+import { esc, estadoRed, estadoHost, ESTADO_FORMA, formatoReloj, contarHasta, Estado, respuestaSvg } from "./utils/security";
 import { tipoDe, iconoSvg, TIPOS } from "./utils/tipos";
+import { Temas, iniciarTema } from "./components/Temas";
+
+const temaInicial = iniciarTema("abismo");
 
 type Vista = "inicio" | "mapear" | "detectar" | "vulnerar";
 let seleccionado: string | null = null;
@@ -38,7 +42,7 @@ app.innerHTML = `
       <button data-vista="detectar">Detectar</button>
       <button data-vista="vulnerar" class="es-futuro">Vulnerar <span class="pronto">pronto</span></button>
     </nav>
-    <div class="control" id="control"></div>
+    <div class="control"><div id="temas"></div><div id="control"></div></div>
   </header>
   <div class="aviso-error" id="aviso-error" role="alert" hidden></div>
 
@@ -102,6 +106,7 @@ function irA(v: Vista) {
   }
 }
 
+document.getElementById("temas")!.appendChild(new Temas(temaInicial).getElement());
 const control = document.getElementById("control")!;
 function pintarControl(st: AppState) {
   control.innerHTML = st.isScanning
@@ -189,7 +194,7 @@ function pintarIndice() {
           return `<li><button type="button" class="fila${d.ip === seleccionado ? " is-sel" : ""}" data-ip="${esc(d.ip)}" aria-current="${d.ip === seleccionado}">
             <span class="fila-ico" title="${TIPOS[tipo].nombre}">${iconoSvg(tipo, "ico", 16)}</span>
             <span class="fila-ip">${esc(d.ip)}</span>
-            <span class="fila-nombre">${esc(d.device || "Sin nombre")}</span>
+            <span class="fila-nombre">${respuestaSvg(d.latency || 0)}${esc(d.device || "Sin nombre")}</span>
             <span class="fila-n">${d.ports.length} ${d.ports.length === 1 ? "puerto" : "puertos"}</span>
             ${h ? `<span class="fila-h">${h} ${h === 1 ? "hallazgo" : "hallazgos"}</span>` : tieneHallazgos(d) ? `<span class="fila-p">posibles</span>` : ""}
           </button></li>`;
@@ -197,7 +202,11 @@ function pintarIndice() {
         .join("")}</ul>
     </section>`;
   }).join("");
-  el.querySelectorAll<HTMLButtonElement>(".fila").forEach((b) => b.addEventListener("click", () => seleccionar(b.dataset.ip === seleccionado ? null : b.dataset.ip!)));
+  el.querySelectorAll<HTMLButtonElement>(".fila").forEach((b) => {
+    b.addEventListener("click", () => seleccionar(b.dataset.ip === seleccionado ? null : b.dataset.ip!));
+    b.addEventListener("mouseenter", () => senal.resaltar(b.dataset.ip!));
+    b.addEventListener("mouseleave", () => senal.resaltar(null));
+  });
   el.querySelector(".is-sel")?.scrollIntoView({ block: "nearest" });
 }
 filtroState.subscribe(pintarIndice);
@@ -217,7 +226,14 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ── Mapa + columna derecha (plan o ficha) ───────────────────────────────────
-const senal = new Senal((ip) => seleccionar(ip === seleccionado ? null : ip));
+// Pasar el cursor por un nodo marca su fila en el índice, y al revés.
+const senal = new Senal(
+  (ip) => seleccionar(ip === seleccionado ? null : ip),
+  (ip) => {
+    document.querySelectorAll(".fila.is-resaltada").forEach((f) => f.classList.remove("is-resaltada"));
+    if (ip) document.querySelector(`.fila[data-ip="${CSS.escape(ip)}"]`)?.classList.add("is-resaltada");
+  }
+);
 document.getElementById("senal")!.appendChild(senal.getElement());
 
 let acciones: Accion[] = [];
@@ -233,7 +249,7 @@ function pintarLado(animar = false) {
   const d = ultimo?.devices.find((x) => x.ip === seleccionado) ?? null;
   document.body.classList.toggle("con-ficha", !!d);
   if (d) {
-    el.innerHTML = `<p class="lado-tipo">${iconoSvg(tipoDe(d), "ico", 15)} ${TIPOS[tipoDe(d)].nombre}</p>${fichaHost(d, { animar })}`;
+    el.innerHTML = `<p class="lado-tipo">${iconoSvg(tipoDe(d), "ico", 15)} ${TIPOS[tipoDe(d)].nombre}<span class="lado-resp">${respuestaSvg(d.latency || 0)} ${(d.latency || 0).toFixed(1)} ms</span></p>${fichaHost(d, { animar })}`;
     conectarFicha(el, () => seleccionar(null));
     el.scrollTop = 0;
     return;
