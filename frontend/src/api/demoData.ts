@@ -308,6 +308,32 @@ const DEMO_EXTRA: CategoryDevice[] = Array.from({ length: 34 }, (_, i) => {
   };
 });
 
+// Un servidor con muchos puertos abiertos, para ver cómo se acomodan en el despiece.
+const PUERTOS_SERVIDOR: [number, string, string][] = [
+  [22, "ssh", "OpenSSH 9.2p1"], [25, "smtp", "Postfix smtpd"], [53, "domain", "dnsmasq 2.89"], [80, "http", "nginx 1.24"],
+  [110, "pop3", "Dovecot pop3d"], [111, "rpcbind", "2-4 (RPC #100000)"], [143, "imap", "Dovecot imapd"], [443, "https", "nginx 1.24"],
+  [445, "microsoft-ds", "Samba smbd 4.17"], [587, "smtp", "Postfix smtpd"], [993, "imaps", "Dovecot imapd"], [995, "pop3s", "Dovecot pop3d"],
+  [2049, "nfs", "3-4 (RPC #100003)"], [3000, "http", "Grafana"], [3306, "mysql", "MariaDB 10.11"], [5432, "postgresql", "PostgreSQL 15"],
+  [6379, "redis", "Redis 7.0"], [8006, "https", "Proxmox VE API"], [8080, "http", "Jenkins"], [8443, "https-alt", "Portainer"],
+  [9000, "http", "MinIO"], [9090, "http", "Prometheus"], [9100, "http", "node_exporter"], [27017, "mongodb", "MongoDB 6.0"],
+];
+const SERVIDOR: CategoryDevice = {
+  ip: "192.168.1.10",
+  device: "Proxmox VE (servidor)",
+  mac: "D0:50:99:4A:10:0A",
+  services: PUERTOS_SERVIDOR.map(([p, svc]) => `${p}/${svc}`),
+  ports: PUERTOS_SERVIDOR.map(([p]) => p),
+  filtered_ports: [],
+  filtered_services: [],
+  service_details: PUERTOS_SERVIDOR.map(([p, svc, prod]) => sd(p, svc, { product: prod })),
+  os_info: { device_types: ["general purpose"], exact_match: true, running: "Linux 6.X", cpe: null, cpes: [], details: "Linux 6.1 - 6.8", guesses: [], sin_match_exacto_msg: null },
+  location_urls: [],
+  vulnerabilities: [],
+  latency: 0.8,
+  possible_vulnerabilities: [],
+};
+DEMO_DEVICES.push(SERVIDOR);
+
 const DEMO_STATS: ScanStats = {
   active_devices: DEMO_DEVICES.length,
   total_vulns: 4,

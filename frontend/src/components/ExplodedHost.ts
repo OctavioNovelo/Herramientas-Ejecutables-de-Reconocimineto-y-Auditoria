@@ -91,20 +91,44 @@ export function dibujarHost(d: Device | null): string {
     const hd = PLACA_D / 2;
     svg += `<g class="zona" data-capa="${c.n}"><polygon class="zona-hit" points="${CX},${cy - hd - 14} ${CX + hw + 4},${cy} ${CX + hw + 4},${cy + GROSOR} ${CX},${cy + hd + GROSOR + 2} ${CX - hw - 4},${cy + GROSOR} ${CX - hw - 4},${cy}"/>`;
     svg += `<g class="capa" style="--i:${i}">${placa(cy, c.estado ? `est-${c.estado}` : "")}`;
-    // Marcas sobre la placa
+    // Marcas sobre la placa. Pocas van en una fila; muchas, en una cuadrícula sobre la cara de la
+    // placa (en vez de apretarse en una sola línea). Se dibujan de atrás hacia delante para que
+    // se tapen bien entre sí. Las etiquetas solo van cuando caben; si no, cada bloque conserva su
+    // número como tooltip y la lista completa sigue en la especificación de la capa.
     if (c.marcas.length) {
-      const n = c.marcas.length;
-      c.marcas.forEach((m, k) => {
-        const u = 0.15 + (0.7 * (k + 0.5)) / n;
-        const [x, y] = iso(cy, u, 0.5);
-        if (m.estado === "abierto" || m.estado === "filtrado") {
-          const conH = d.vulnerabilities.some((v) => String(v.port) === m.etiqueta);
-          svg += `<g class="bloque ${m.estado}${conH ? " con-h" : ""}"><polygon points="${x},${y - 12} ${x + 7},${y - 8} ${x},${y - 4} ${x - 7},${y - 8}"/><polygon class="b-l" points="${x - 7},${y - 8} ${x},${y - 4} ${x},${y + 2} ${x - 7},${y - 2}"/><polygon class="b-r" points="${x},${y - 4} ${x + 7},${y - 8} ${x + 7},${y - 2} ${x},${y + 2}"/>
-            <text x="${x}" y="${y + 15}">${esc(m.etiqueta)}</text></g>`;
-        } else {
-          svg += `<g class="marca-h est-${m.estado}"><path d="M${x} ${y - 9} L${x + 9} ${y} L${x} ${y + 9} L${x - 9} ${y} Z"/></g>`;
-        }
+      const MAX = 36;
+      const sobran = Math.max(0, c.marcas.length - MAX);
+      const marcas = sobran ? c.marcas.slice(0, MAX - 1) : c.marcas;
+      const n = marcas.length;
+      const enFila = n <= 7;
+      const cols = enFila ? n : Math.ceil(Math.sqrt(n * 1.3));
+      const filas = enFila ? 1 : Math.ceil(n / cols);
+      const k = n > 20 ? 0.72 : n > 12 ? 0.85 : 1;
+      const conEtiqueta = n <= 12;
+      const puestos = marcas.map((m, i) => {
+        const col = i % cols;
+        const fila = Math.floor(i / cols);
+        const u = 0.14 + (0.72 * (col + 0.5)) / cols;
+        const v = enFila ? 0.5 : 0.16 + (0.68 * (fila + 0.5)) / filas;
+        return { m, u, v };
       });
+      puestos.sort((a, b) => a.u + a.v - (b.u + b.v));
+      for (const { m, u, v } of puestos) {
+        const [x, y] = iso(cy, u, v);
+        if (m.estado === "abierto" || m.estado === "filtrado") {
+          const conH = d.vulnerabilities.some((vv) => String(vv.port) === m.etiqueta);
+          // Cubo de 14 px centrado en su base; k lo achica cuando hay muchos.
+          svg += `<g class="bloque ${m.estado}${conH ? " con-h" : ""}"><title>${esc(m.etiqueta)}</title><g transform="translate(${x} ${y}) scale(${k})"><polygon points="0,-12 7,-8 0,-4 -7,-8"/><polygon class="b-l" points="-7,-8 0,-4 0,2 -7,-2"/><polygon class="b-r" points="0,-4 7,-8 7,-2 0,2"/></g>${
+            conEtiqueta ? `<text x="${x}" y="${y + 15}">${esc(m.etiqueta)}</text>` : ""
+          }</g>`;
+        } else {
+          svg += `<g class="marca-h est-${m.estado}"><path d="M${x} ${y - 9 * k} L${x + 9 * k} ${y} L${x} ${y + 9 * k} L${x - 9 * k} ${y} Z"/></g>`;
+        }
+      }
+      if (sobran) {
+        const [x, y] = iso(cy, 0.93, 0.93);
+        svg += `<text class="bloque-mas" x="${x}" y="${y + 4}">+${sobran + 1}</text>`;
+      }
     }
     // Cota: línea de referencia desde la esquina derecha de la placa hasta el número
     const [ex, ey] = [CX + PLACA_W / 2, cy];
