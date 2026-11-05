@@ -1,41 +1,40 @@
-# Dirección D — "Levantamiento"
+# Dirección F — "Cianotipo" (segunda ronda)
 
-Evolución de A (Carta) y B (Lámina). La red como un levantamiento topográfico: primero el
-terreno (la carta de contornos de A) y, al elegir un dispositivo, su plano de despiece
-(la vista explotada de B), en el mismo panel. Oscuro, como instrumento de monitoreo.
+El plano técnico de B, pero en **papel azul de cianotipo con tinta blanca**: la misma precisión
+y la misma voz, sin el brillo del papel blanco. La carta se convierte en el **abanico** del logo.
 
-## Qué toma de cada una
-- **De A:** lienzo oscuro de instrumento, carta con anillos de latencia y pins con forma
-  de estado, lecturas en Martian Mono condensada que cuentan hacia arriba, barrido durante
-  el escaneo, resultados con regla de puertos logarítmica.
-- **De B:** titular editorial en minúsculas que dice el diagnóstico en una frase, vista
-  explotada en capas con cotas numeradas, cajetín al pie, Familjen Grotesk como voz.
-- **Nuevo:**
-  - La carta se aparta y deja sitio al despiece del pin elegido (un mismo componente que
-    se transforma, en vez de un cajón aparte).
-  - Durante un escaneo, el titular se convierte en el progreso: "levantando el plano de tu
-    red." con un reloj grande.
-  - Diseñada como app: ocupa la ventana sin scroll de página, cada zona hace su propio scroll,
-    y en un mosaico estrecho (gestores en mosaico, media pantalla) el contenido fluye en una
-    columna.
+## Qué toma de la primera ronda
+- **De B:** el titular grande en minúsculas que dice el diagnóstico en una frase, las láminas
+  en capas (cada capa se levanta al pasar el cursor e ilumina su descripción), el cajetín al
+  pie y las hojas de especificación en Mapear/Detectar.
+- **De A:** el inspector del host (mac, sistema, latencia, filtrados y tabla de puertos) y
+  "Qué hacer ahora" a la derecha.
+- **De D:** carta y despiece en la misma pantalla.
+
+## Qué cambió por la revisión
+- **Ya no es blanco.** Papel azul profundo; los estados usan las versiones claras de la pluma,
+  la cresta y el coral para leerse bien.
+- **El abanico resuelve los nombres:** cada host tiene su pluma y su etiqueta (IP y nombre) se
+  escribe a lo largo de ella. Ninguna etiqueta se encima con otra, ni con 40 hosts.
+- Buscador y filtros en el inicio y en Mapear/Detectar (mismo filtro en todas las vistas).
+- El logo + hera es el botón de inicio; sin Resumen ni Penetrar.
+- Fondo vivo: la cuadrícula de dibujo deriva muy despacio y las manchas de revelado respiran.
+  Durante un escaneo, un barrido recorre el abanico.
 
 ## Paleta
 | token | hex | uso |
 |---|---|---|
-| fondo | `#16181B` | lienzo (grafito neutro) |
-| panel | `#1B1E22` | superficies |
-| línea | `#31363D` | bordes, contornos |
-| tinta | `#ECEEF0` | texto, acción primaria |
-| tinta-2 | `#A3AAB2` | texto secundario |
-| seguro | `#6DCBA6` ● | estado |
-| alerta | `#E7B44C` ▲ | estado |
-| riesgo | `#F2785B` ◆ | estado |
+| papel | `#0D2747` | lienzo (cianotipo) |
+| hoja | `#10305A` | superficies |
+| tinta | `#EEF5FF` | texto, líneas de dibujo, acción primaria |
+| tinta-2 | `#B0C6E2` | texto secundario |
+| pluma | `#4AE6C9` ● | seguro |
+| cresta | `#F3C86D` ▲ | alerta |
+| riesgo | `#FF8E76` ◆ | riesgo |
 
 ## Tipografía
-- **Familjen Grotesk** (voz, titulares, interfaz) y **Martian Mono** al 75–85 % de anchura
-  (IPs, puertos, cifras, reloj).
-- Escala 1.25 sobre 14 px: 11.2 / 12.5 / 14 / 17.5 / 22 / 34, más un display de 30–52 px.
+Familjen Grotesk (voz en minúsculas y titulares) y Azeret Mono (cotas, IPs, cifras).
+Escala 1.333 sobre 15 px.
 
 ## Verla
-- App nativa con datos de demostración: `npm run tauri:demo` (o `tauri:demovacio`).
-- App nativa con tus escaneos reales: `npm run tauri dev`.
+`npm run tauri:demo` (8 hosts), `npm run tauri:demogrande` (42 hosts), `npm run tauri dev` (real).
