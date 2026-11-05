@@ -1,13 +1,14 @@
-/* HERA, dirección H "Señal" (tercera ronda).
-   Paleta de G (pizarra), la favorita. Láminas y hojas vienen de comun.css.
-   Onest (interfaz) + Martian Mono condensada (IPs, cifras).
+/* HERA, dirección L "Panorama" (ronda final), sobre H "Señal".
+   El mapa ocupa toda la pantalla; el índice y el plan/ficha flotan encima en paneles opacos
+   (sin desenfoque: en WebKitGTK sin composición el blur repinta todo en cada cuadro).
+   Hanken Grotesk (interfaz) + JetBrains Mono (IPs, cifras). Paleta por defecto: Ocelo.
    Rendimiento: nada se recalcula por cuadro. El fondo avanza a saltos lentos (steps) y las
    ondas del router son tres círculos animados con CSS. */
 
 :root {
   /* Los colores vienen de styles/temas.css (paleta elegida en la barra). */
-  --sans: "Onest Variable", system-ui, sans-serif;
-  --mono: "Martian Mono Variable", ui-monospace, monospace;
+  --sans: "Hanken Grotesk Variable", system-ui, sans-serif;
+  --mono: "JetBrains Mono Variable", ui-monospace, monospace;
   --t-xs: 11.5px;
   --t-s: 12.5px;
   --t-m: 14px;
@@ -17,7 +18,6 @@
   --r: 8px;
 }
 
-.fh-ip, .fila-ip, .lecturas dd { font-stretch: 80%; }
 
 /* Fondo: retícula de puntos con dos luces de la marca. Se desplaza a saltos (cada ~0.6 s) para
    no repintar la pantalla completa en cada cuadro. */
@@ -33,7 +33,7 @@
 .barra { display: flex; align-items: center; gap: 24px; padding: 0 20px; height: 56px; border-bottom: 1px solid var(--linea); background: var(--barra); }
 .marca { display: flex; align-items: center; gap: 9px; }
 .marca img { width: 32px; height: auto; display: block; }
-.marca span { font: 700 17px / 1 var(--sans); letter-spacing: 0.06em; }
+.marca span { font: 800 18px / 1 var(--sans); letter-spacing: 0.08em; }
 .marca:hover span { color: var(--pluma); }
 .nav { display: flex; gap: 2px; }
 .nav button { padding: 7px 12px; border-radius: var(--r); color: var(--tinta-2); display: flex; align-items: center; gap: 8px; }
@@ -48,31 +48,59 @@
 .btn-sec:hover { border-color: var(--tinta-3); }
 .btn-cancelar:hover { border-color: var(--riesgo); color: var(--riesgo); }
 
-/* ── Inicio ─────────────────────────────────────────────────────────────── */
-.inicio { display: flex; flex-direction: column; }
-.mando { padding: 16px 20px 12px; border-bottom: 1px solid var(--linea); display: grid; gap: 10px; }
-.mando .bus-campo { height: 46px; border-radius: 10px; flex-basis: 480px; }
-.mando .bus-input { font-size: var(--t-l); }
-.mando .bus-lupa { width: 18px; height: 18px; }
-.diag { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
-.diag-frase { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--est, var(--tinta-2)); }
-.lecturas { display: flex; gap: 20px; margin-left: auto; flex-wrap: wrap; }
-.lecturas > div { display: flex; align-items: baseline; gap: 6px; }
+/* ── Inicio: escena a pantalla completa con paneles flotantes ───────────── */
+.pano {
+  position: relative; overflow: hidden;
+  --izq-w: 320px; --der-w: 400px; --hueco: 14px;
+  --izq-ocupa: calc(var(--izq-w) + var(--hueco) * 2);
+  --der-ocupa: calc(var(--der-w) + var(--hueco) * 2);
+}
+body.con-ficha .pano { --der-w: min(560px, 42vw); }
+body.sin-izq .pano { --izq-ocupa: var(--hueco); }
+body.sin-der .pano { --der-ocupa: var(--hueco); }
+.escena { position: absolute; inset: 0; display: grid; }
+
+.panel { position: absolute; top: var(--hueco); bottom: 60px; z-index: 2; border-radius: 16px; border: 1px solid var(--linea); background: color-mix(in srgb, var(--panel) 98%, transparent); box-shadow: 0 18px 48px rgba(0, 0, 0, 0.3); transition: transform 0.24s cubic-bezier(.2,.8,.2,1), opacity 0.2s, visibility 0s; }
+.panel-izq { left: var(--hueco); width: var(--izq-w); display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.panel-der { right: var(--hueco); width: var(--der-w); overflow: auto; padding: 16px 20px 24px; }
+body.sin-izq .panel-izq { transform: translateX(calc(-100% - 20px)); opacity: 0; visibility: hidden; transition: transform 0.24s cubic-bezier(.2,.8,.2,1), opacity 0.2s, visibility 0s 0.24s; }
+body.sin-der .panel-der { transform: translateX(calc(100% + 20px)); opacity: 0; visibility: hidden; transition: transform 0.24s cubic-bezier(.2,.8,.2,1), opacity 0.2s, visibility 0s 0.24s; }
+
+.panel-bus { padding: 12px 12px 10px; border-bottom: 1px solid var(--linea-tenue); }
+.panel-bus .bus { gap: 8px; }
+.panel-bus .bus-campo { flex-basis: 100%; height: 40px; border-radius: 10px; background: var(--fondo); }
+.panel-bus .bus-chip { height: 28px; padding: 0 10px; }
+
+/* Estado de la red: una cápsula arriba, centrada en la zona libre. */
+.cima { position: absolute; top: var(--hueco); left: var(--izq-ocupa); right: var(--der-ocupa); z-index: 1; display: flex; justify-content: center; pointer-events: none; transition: left 0.24s, right 0.24s; }
+.diag { pointer-events: auto; display: flex; align-items: center; gap: 8px 22px; flex-wrap: wrap; justify-content: center; max-width: 100%; padding: 9px 18px; border-radius: 999px; border: 1px solid var(--linea); background: color-mix(in srgb, var(--panel) 92%, transparent); }
+.diag-frase { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--est, var(--tinta-2)); }
+.lecturas { display: flex; gap: 16px; flex-wrap: wrap; }
+.lecturas > div { display: flex; align-items: baseline; gap: 5px; }
 .lecturas dt { color: var(--tinta-3); font-size: var(--t-xs); order: 2; }
-.lecturas dd { font: 600 var(--t-l) / 1 var(--mono); font-variant-numeric: tabular-nums; }
-.lecturas > div:last-child dd { font-size: var(--t-s); font-weight: 500; color: var(--tinta-2); }
+.lecturas dd { font: 600 var(--t-m) / 1 var(--mono); font-variant-numeric: tabular-nums; }
+.lecturas > div:last-child { display: none; }
 .lecturas .est-riesgo dd, .lecturas .est-alerta dd { color: var(--est); }
 .diag.is-escaneando .diag-frase { color: var(--pluma); }
-.diag-reloj { margin-left: auto; font: 600 var(--t-xl) var(--mono); font-stretch: 75%; font-variant-numeric: tabular-nums; color: var(--pluma); }
+.diag-reloj { font: 600 var(--t-l) var(--mono); font-variant-numeric: tabular-nums; color: var(--pluma); }
 
-.trabajo { flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr) 420px; }
-body.con-ficha .trabajo { grid-template-columns: 300px minmax(0, 1fr) 540px; }
+/* Pie: pliegues de los paneles y leyenda */
+.pie { position: absolute; left: var(--hueco); right: var(--hueco); bottom: 12px; z-index: 2; display: flex; align-items: center; gap: 12px; pointer-events: none; }
+.pie > * { pointer-events: auto; }
+.pliegue { height: 34px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--linea); background: var(--panel); color: var(--tinta-2); font-size: var(--t-s); font-weight: 600; }
+.pliegue:hover { color: var(--tinta); border-color: var(--tinta-3); }
+.pliegue[aria-expanded="false"] { color: var(--pluma); border-color: color-mix(in srgb, var(--pluma) 55%, var(--linea)); }
+.pie .leyenda { margin: 0 auto; padding: 7px 14px; border-radius: 999px; background: color-mix(in srgb, var(--panel) 88%, transparent); }
+.leyenda { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: var(--t-xs); color: var(--tinta-3); }
+.leyenda span { display: flex; align-items: center; gap: 5px; }
+.leyenda [class*="est-"] { color: var(--est); }
+.pano .sn-zoom { right: var(--der-ocupa); bottom: 60px; transition: right 0.24s; }
 
 /* Índice (de G, ahora con el ícono del tipo) */
-.indice { min-height: 0; overflow: auto; border-right: 1px solid var(--linea); padding: 8px 10px 18px; outline: none; }
+.indice { min-height: 0; overflow: auto; padding: 4px 8px 16px; outline: none; }
 .indice-vacio { padding: 16px 8px; }
 .grupo + .grupo { margin-top: 10px; }
-.grupo-t { position: sticky; top: -8px; z-index: 1; display: flex; align-items: center; gap: 7px; padding: 10px 8px 6px; font-size: var(--t-xs); font-weight: 600; color: var(--est); background: var(--fondo); }
+.grupo-t { position: sticky; top: -4px; z-index: 1; display: flex; align-items: center; gap: 7px; padding: 10px 8px 6px; font-size: var(--t-xs); font-weight: 600; color: var(--est); background: var(--panel); }
 .grupo-t span { color: var(--tinta-3); font: 500 var(--t-xs) var(--mono); }
 .grupo ul { list-style: none; display: grid; gap: 2px; }
 .fila { width: 100%; text-align: left; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; grid-template-areas: "ico ip h" "ico nombre n"; gap: 1px 10px; align-items: center; padding: 7px 10px 7px 8px; border-radius: 6px; position: relative; }
@@ -89,15 +117,6 @@ body.con-ficha .trabajo { grid-template-columns: 300px minmax(0, 1fr) 540px; }
 .fila-n { grid-area: n; color: var(--tinta-3); font-size: var(--t-xs); text-align: right; }
 .fila-h, .fila-p { grid-area: h; font-size: var(--t-xs); font-weight: 600; color: var(--riesgo); text-align: right; }
 .fila-p { color: var(--tinta-3); font-weight: 500; }
-
-/* Mapa */
-.mapa { min-height: 0; min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
-.mapa-cab { padding: 14px 18px 0; }
-.mapa-cab h2 { font-size: var(--t-m); font-weight: 650; }
-.leyenda { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: var(--t-xs); color: var(--tinta-3); }
-.leyenda span { display: flex; align-items: center; gap: 5px; }
-.leyenda [class*="est-"] { color: var(--est); }
-.mapa-lienzo { min-height: 0; display: grid; padding: 4px 10px 10px; }
 
 /* La señal (components/Senal.ts) */
 .senal { min-height: 0; display: grid; }
@@ -157,8 +176,7 @@ svg.con-seleccion .sn-nodo:not(.is-selected):not(:hover) .sn-etq { opacity: 0.45
 .sn-hub.is-selected .sn-halo { r: 41px; }
 .sn-vacio { font: 400 14px var(--sans); fill: var(--tinta-3); }
 
-/* Columna derecha */
-.lado { min-height: 0; overflow: auto; border-left: 1px solid var(--linea); padding: 16px 20px 24px; background: color-mix(in srgb, var(--panel) 65%, transparent); }
+/* Panel derecho: plan o ficha */
 .lado-cab { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
 .lado-t { font-size: var(--t-l); font-weight: 650; }
 .lado-cab span { color: var(--tinta-3); font: 500 var(--t-s) var(--mono); }
@@ -166,7 +184,7 @@ svg.con-seleccion .sn-nodo:not(.is-selected):not(:hover) .sn-etq { opacity: 0.45
 .lado-resp { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); }
 .lado-tipo { display: flex; align-items: center; gap: 6px; color: var(--tinta-3); font-size: var(--t-xs); margin-bottom: 4px; }
 .acciones { list-style: none; display: grid; gap: 8px; }
-.accion { border: 1px solid var(--linea); border-radius: 10px; background: var(--panel); border-left: 3px solid var(--est); }
+.accion { border: 1px solid var(--linea); border-radius: 10px; background: var(--panel-2); border-left: 3px solid var(--est); }
 .accion summary { list-style: none; padding: 11px 14px; cursor: pointer; display: grid; gap: 2px; }
 .accion summary::-webkit-details-marker { display: none; }
 .accion-prio { display: flex; align-items: center; gap: 6px; color: var(--est); font-size: var(--t-xs); font-weight: 600; }
@@ -181,19 +199,18 @@ svg.con-seleccion .sn-nodo:not(.is-selected):not(:hover) .sn-etq { opacity: 0.45
 
 /* ── Ventanas medianas y mosaicos estrechos ─────────────────────────────── */
 @media (max-width: 1380px) {
-  .trabajo, body.con-ficha .trabajo { grid-template-columns: 270px minmax(0, 1fr) 400px; }
+  .pano { --izq-w: 290px; --der-w: 370px; }
+  body.con-ficha .pano { --der-w: min(500px, 44vw); }
   .fh-despiece { grid-template-columns: 1fr; }
 }
-@media (max-width: 1100px) {
-  .trabajo, body.con-ficha .trabajo { grid-template-columns: minmax(0, 1fr) 400px; }
-  .indice { display: none; }
+@media (max-width: 1000px) {
+  .pano { --izq-w: 260px; --der-w: 330px; --hueco: 10px; }
+  .leyenda-nota { display: none; }
 }
-@media (max-width: 800px) {
-  .inicio { overflow: auto; }
-  .trabajo, body.con-ficha .trabajo { grid-template-columns: 1fr; flex: none; }
-  .mapa { height: 70vh; }
-  .lado { border-left: 0; border-top: 1px solid var(--linea); overflow: visible; }
-  .lecturas { margin-left: 0; }
+@media (max-width: 760px) {
+  .pano { --izq-w: calc(100vw - 20px); --der-w: calc(100vw - 20px); }
+  body.con-ficha .pano { --der-w: calc(100vw - 20px); }
+  .cima { left: var(--hueco); right: var(--hueco); }
   .barra { gap: 12px; padding: 0 12px; }
-  .marca span, .pronto { display: none; }
+  .marca span, .pronto, .tm-boton span { display: none; }
 }
