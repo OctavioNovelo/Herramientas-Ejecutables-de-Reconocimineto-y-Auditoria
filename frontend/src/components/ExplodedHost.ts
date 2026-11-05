@@ -84,6 +84,12 @@ export function dibujarHost(d: Device | null): string {
     const cy = base - i * SEP;
     // Guía vertical de ensamblaje (línea discontinua entre placas)
     if (i > 0) svg += `<line class="guia" x1="${CX}" y1="${cy + PLACA_D / 2 + GROSOR}" x2="${CX}" y2="${cy + SEP - PLACA_D / 2}"/>`;
+    // Cada capa va dentro de una zona con un área fija para el ratón: la capa se levanta al
+    // pasar el cursor (ver .zona:hover .capa en el CSS) y, sin esta área, se movería fuera
+    // del cursor y caería otra vez, parpadeando.
+    const hw = PLACA_W / 2;
+    const hd = PLACA_D / 2;
+    svg += `<g class="zona" data-capa="${c.n}"><polygon class="zona-hit" points="${CX},${cy - hd - 14} ${CX + hw + 4},${cy} ${CX + hw + 4},${cy + GROSOR} ${CX},${cy + hd + GROSOR + 2} ${CX - hw - 4},${cy + GROSOR} ${CX - hw - 4},${cy}"/>`;
     svg += `<g class="capa" style="--i:${i}">${placa(cy, c.estado ? `est-${c.estado}` : "")}`;
     // Marcas sobre la placa
     if (c.marcas.length) {
@@ -105,7 +111,7 @@ export function dibujarHost(d: Device | null): string {
     const lx = 430;
     svg += `<polyline class="cota" points="${ex + 4},${ey} ${ex + 26},${ey - 18} ${lx},${ey - 18}"/>
       <circle class="cota-n" cx="${lx + 12}" cy="${ey - 18}" r="11"/><text class="cota-t" x="${lx + 12}" y="${ey - 14}">${c.n}</text>
-      <text class="cota-nombre" x="${lx + 30}" y="${ey - 14}">${c.nombre}</text></g>`;
+      <text class="cota-nombre" x="${lx + 30}" y="${ey - 14}">${c.nombre}</text></g></g>`;
   });
   return `<svg class="lamina-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Vista explotada de ${esc(d.ip)}: ${cs.map((c) => `${c.nombre}: ${c.spec.join(", ")}`).join("; ")}">${svg}</svg>`;
 }
@@ -115,7 +121,7 @@ export function specsHost(d: Device): string {
     .slice()
     .reverse()
     .map(
-      (c) => `<div class="spec${c.estado ? ` est-${c.estado}` : ""}">
+      (c) => `<div class="spec${c.estado ? ` est-${c.estado}` : ""}" data-capa="${c.n}">
         <span class="spec-n">${c.n}</span>
         <div><p class="spec-nombre">${c.nombre}</p>${c.spec.map((s) => `<p class="spec-v">${esc(s)}</p>`).join("")}</div>
       </div>`

@@ -36,6 +36,7 @@ frontend/src-tauri/gen/schemas/
 # Excepción: modos de demostración de Vite (sin secretos, ver frontend/package.json → tauri:demo)
 !frontend/.env.demo
 !frontend/.env.demovacio
+!frontend/.env.demogrande
 
 # Editores y sistema operativo
 .vscode/

@@ -11,6 +11,11 @@ const DEMO_ENV = import.meta.env.VITE_HERA_DEMO as string | undefined;
 export const isDemoMode = (): boolean =>
   !!DEMO_ENV || (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("demo"));
 
+// `?demo=grande` (o `npm run tauri:demogrande`) agrega decenas de hosts, para probar la carta,
+// las etiquetas y el buscador con una red concurrida.
+export const isDemoBig = (): boolean =>
+  DEMO_ENV === "grande" || (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "grande");
+
 // `?demo=vacio` simula una instalación sin escaneos previos (primer arranque).
 export const isDemoEmpty = (): boolean =>
   DEMO_ENV === "vacio" || (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "vacio");
@@ -257,6 +262,52 @@ export const DEMO_DEVICES: CategoryDevice[] = [
   },
 ];
 
+// Red concurrida: hosts generados de forma determinista (siempre los mismos) a partir de
+// fabricantes y servicios típicos de una oficina o casa grande.
+const PERFILES: { nombre: string; puertos: [number, string, string?][] }[] = [
+  { nombre: "Apple iPhone", puertos: [[62078, "tcpwrapped"]] },
+  { nombre: "Samsung Galaxy S23", puertos: [] },
+  { nombre: "HP LaserJet Pro M404", puertos: [[80, "http", "HP HTTP Server"], [631, "ipp"], [9100, "jetdirect"]] },
+  { nombre: "Ubiquiti UniFi AP", puertos: [[22, "ssh", "Dropbear sshd 2019.78"], [443, "https"]] },
+  { nombre: "Hikvision DS-2CD2143", puertos: [[80, "http", "Hikvision Web"], [554, "rtsp"], [8000, "http-alt"]] },
+  { nombre: "Raspberry Pi", puertos: [[22, "ssh", "OpenSSH 9.2p1 Debian"]] },
+  { nombre: "Hui Zhou Gaoshengda Technology", puertos: [[7000, "rtsp", "AirTunes rtspd 377.40.00"]] },
+  { nombre: "Sonos One", puertos: [[1400, "http", "Sonos"], [1443, "https"]] },
+  { nombre: "Philips Hue Bridge", puertos: [[80, "http", "Hue personal wireless lighting"], [443, "https"]] },
+  { nombre: "Google Nest Mini", puertos: [[8008, "http"], [8009, "ajp13"], [8443, "https-alt"]] },
+  { nombre: "Dell OptiPlex 7090", puertos: [[135, "msrpc"], [139, "netbios-ssn"], [445, "microsoft-ds"], [3389, "ms-wbt-server"]] },
+  { nombre: "Lenovo ThinkPad T14", puertos: [[135, "msrpc"], [445, "microsoft-ds"]] },
+  { nombre: "TP-Link TL-SG108E", puertos: [[80, "http", "TP-Link switch httpd"]] },
+  { nombre: "Xiaomi Mi Box S", puertos: [[8008, "http"], [8443, "https-alt"]] },
+  { nombre: "Dispositivo desconocido", puertos: [] },
+  { nombre: "Brother MFC-L2710DW", puertos: [[80, "http"], [515, "printer"], [631, "ipp"]] },
+];
+
+const DEMO_EXTRA: CategoryDevice[] = Array.from({ length: 34 }, (_, i) => {
+  const perfil = PERFILES[(i * 7 + 3) % PERFILES.length];
+  const octeto = 100 + i * 3;
+  const hex = (n: number) => n.toString(16).toUpperCase().padStart(2, "0");
+  const ports = perfil.puertos.map(([p]) => p);
+  return {
+    ip: `192.168.1.${octeto}`,
+    device: perfil.nombre,
+    mac: `3C:22:${hex(i * 11)}:${hex(i * 29 + 7)}:${hex(i * 5 + 1)}:${hex(octeto)}`,
+    services: perfil.puertos.map(([p, s]) => `${p}/${s}`),
+    ports,
+    filtered_ports: i % 9 === 0 ? [21] : [],
+    filtered_services: i % 9 === 0 ? ["21/ftp"] : [],
+    service_details: perfil.puertos.map(([p, s, prod]) => sd(p, s, prod ? { product: prod } : { reconocido: s !== "tcpwrapped" })),
+    os_info: noOs,
+    location_urls: [],
+    vulnerabilities:
+      i % 11 === 4
+        ? [{ id: "CVE-2023-38545", output: "Desbordamiento en el manejo de proxies SOCKS5 de curl.", severity: "high", sev_label: "Alta", device: `192.168.1.${octeto}`, port: String(ports[0] ?? ""), status: "confirmada", remediation: "Actualiza el firmware del dispositivo." }]
+        : [],
+    latency: Math.round((0.4 + ((i * 37) % 90) / 10) * 10) / 10,
+    possible_vulnerabilities: [],
+  };
+});
+
 const DEMO_STATS: ScanStats = {
   active_devices: DEMO_DEVICES.length,
   total_vulns: 4,
@@ -274,6 +325,14 @@ export function demoDashboard(): DashboardData {
       stats: { ...DEMO_STATS, active_devices: 0, total_vulns: 0, risk_level: "BAJO", vulns_by_severity: { critical: 0, high: 0, medium: 0, low: 0 }, last_scan: "N/A", scan_time_total_seconds: 0, scan_time_total_str: "N/D" },
     };
   }
+  if (isDemoBig()) {
+    const devices = [...DEMO_DEVICES, ...DEMO_EXTRA];
+    const altos = DEMO_EXTRA.filter((d) => d.vulnerabilities.length).length;
+    return {
+      devices,
+      stats: { ...DEMO_STATS, active_devices: devices.length, total_vulns: DEMO_STATS.total_vulns + altos, vulns_by_severity: { ...DEMO_STATS.vulns_by_severity, high: DEMO_STATS.vulns_by_severity.high + altos } },
+    };
+  }
   return { devices: DEMO_DEVICES, stats: DEMO_STATS };
 }
 
@@ -286,7 +345,7 @@ export function demoCategory(fileBase: string): CategoryResult {
     const devices = DEMO_DEVICES.map((d) => ({ ...d, ports: d.ports.filter((p) => adminPorts.has(p)) })).filter((d) => d.ports.length > 0);
     return { devices, found: true, scan_time };
   }
-  return { devices: DEMO_DEVICES, found: true, scan_time };
+  return { devices: isDemoBig() ? [...DEMO_DEVICES, ...DEMO_EXTRA] : DEMO_DEVICES, found: true, scan_time };
 }
 
 // Escaneo simulado: dura `ms` y se puede cancelar (rechaza con ESCANEO_CANCELADO, igual que Rust).
