@@ -1,42 +1,28 @@
-# Dirección G — "Índice" (segunda ronda)
+# Dirección J — "Tablero" (tercera ronda)
 
-Pensada para **redes grandes**, donde lo primero es encontrar un host. El buscador es la pieza
-principal; a la izquierda, un índice de todos los hosts agrupado por estado; al centro, la
-ficha del host elegido (o el plan, si no hay ninguno); a la derecha, una carta pequeña que
-marca dónde caen los resultados de la búsqueda.
+La base es **G** (la favorita): buscador grande arriba e índice de hosts a la izquierda. Al
+centro, "Qué hacer ahora" se convierte en un **tablero de trabajo**: Hoy, Esta semana, Cuando
+puedas y Hecho. Las tarjetas se arrastran entre columnas (o se mueven con su botón y su menú,
+también con teclado) y el **avance se guarda en este equipo** entre escaneos. Si algo marcado
+como hecho vuelve a aparecer en el escaneo siguiente, la tarjeta lo avisa ("volvió a aparecer").
+La ficha del host, con las **láminas de F**, se abre como panel lateral sobre el tablero
+(Esc o Cerrar para volver).
 
-## Qué toma de la primera ronda
-- **De A:** el inspector del host (mac, sistema, latencia, filtrados, tabla de puertos), la
-  carta de contornos (aquí en pequeño, como mapa de ubicación) y "Qué hacer ahora".
-- **De B:** las láminas en capas (cada capa se levanta al pasar el cursor e ilumina su
-  descripción) y las hojas de especificación en Mapear/Detectar.
-- **De D:** carta, ficha y despiece en la misma pantalla.
+## Por qué
+La auditoría no termina al ver los hallazgos: termina al corregirlos. El tablero convierte el
+resultado en una lista de trabajo con avance visible.
 
-## Qué cambió por la revisión
-- Buscador grande con filtros por estado y "con hallazgos". Busca por IP (o `.13` para el
-  último octeto), nombre, MAC, sistema, puerto (`443` o `puerto:443`), servicio, producto o CVE.
-  `/` o `Ctrl+K` lo enfocan; las flechas recorren el índice; Esc limpia.
-- Los nombres nunca se pierden: viven en el índice. La carta pequeña solo rotula el host
-  elegido o el que está bajo el cursor.
-- El logo + HERA es el botón de inicio; sin Resumen ni Penetrar.
-- Fondo con retícula de puntos que sigue un poco al cursor y deriva despacio.
-- Superficie de pizarra (gris azulado), más luminosa que E y sin blanco.
+## Notas
+- El avance se guarda en `localStorage` (preferencia de esta persona en este equipo). Los
+  resultados siguen viniendo solo de `utils/parser.py`.
+- El plan sigue saliendo de `synthesis/plan.ts` (reglas en TypeScript). Para que el CLI tenga
+  el mismo plan habría que moverlo a Python (pendiente).
+- Sin lag: nada se anima por cuadro; el fondo avanza a saltos.
 
 ## Paleta
-| token | hex | uso |
-|---|---|---|
-| pizarra | `#161C23` | lienzo |
-| panel | `#1B222B` | superficies |
-| línea | `#2F3A47` | bordes |
-| tinta | `#EDF1F5` | texto |
-| pluma | `#32D9BA` ● | seguro, foco, acción primaria |
-| cresta | `#E0B65A` ▲ | alerta |
-| riesgo | `#F2735C` ◆ | riesgo |
-
-## Tipografía
-Onest (interfaz; muy legible en listas densas) y Martian Mono condensada (IPs, cifras).
-Escala 1.2 sobre 14 px.
+Pavo real de noche: fondo `#0E1A1C`, panel `#132326`, tinta `#ECF3F1`, pluma `#3FE0BF`
+(seguro, hecho), cresta `#E8BB5C` (alerta, esta semana), coral `#F2765E` (riesgo, hoy).
+Onest + Azeret Mono. Fondo: patrón tenue de ocelos de pluma.
 
 ## Verla
-`npm run tauri:demogrande` (42 hosts, donde más luce), `npm run tauri:demo` (8 hosts),
-`npm run tauri dev` (real).
+`npm run tauri:demo`, `npm run tauri:demogrande`, `npm run tauri dev` (real).
