@@ -332,7 +332,7 @@ export class Senal {
       <g class="sn-enlaces" aria-hidden="true">${enlaces}</g>
       <g class="sn-nodos">${nodosSvg}</g>
       ${centro}
-      ${devices.length === 0 ? `<text class="sn-vacio" x="${CX}" y="${CY - 120}" text-anchor="middle">Sin dispositivos todavía. Escanea la red para verla.</text>` : ""}`;
+      ${devices.length === 0 ? `<g transform="translate(${CX} ${CY - 120})"><g class="sn-cuerpo"><text class="sn-vacio" text-anchor="middle">Sin dispositivos todavía. Escanea la red para verla.</text></g></g>` : ""}`;
 
     this.svg.querySelectorAll<SVGGElement>("g[data-ip]").forEach((g) => {
       const ip = g.dataset.ip!;
