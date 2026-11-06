@@ -1,9 +1,9 @@
-// Campo de búsqueda + filtros por estado. Puede haber varios en pantalla (inicio y vista de
-// escaneo); todos leen y escriben el mismo filtroState. "/" o Ctrl+K enfocan el que esté
+// Campo de búsqueda + un botón "Filtros" que abre un menú con los filtros por estado y "con
+// hallazgos". Puede haber varios en pantalla (inicio y vista de escaneo); todos leen y escriben
+// el mismo filtroState. "/" o Ctrl+K enfocan el que esté
 // visible; Esc lo vacía. Cada dirección visual lo estila con sus propias clases .bus-*.
 
 import { filtroState, filtroActivo, EstadoFiltrable, Filtro } from "../state/filtro";
-import { ESTADO_FORMA } from "../utils/security";
 
 const CHIPS: { estado: EstadoFiltrable; texto: string }[] = [
   { estado: "riesgo", texto: "En riesgo" },
@@ -27,12 +27,19 @@ export class Buscador {
         <input class="bus-input" type="search" autocomplete="off" spellcheck="false" aria-label="Buscar dispositivos" placeholder="${placeholder}">
         <kbd class="bus-tecla" aria-hidden="true">/</kbd>
       </label>
-      <div class="bus-chips" role="group" aria-label="Filtrar por estado">
-        ${CHIPS.map((c) => `<button type="button" class="bus-chip est-${c.estado}" data-estado="${c.estado}" aria-pressed="false">${ESTADO_FORMA[c.estado]}${c.texto}</button>`).join("")}
-        <button type="button" class="bus-chip bus-chip-h" data-hallazgos aria-pressed="false">Con hallazgos</button>
-      </div>
-      <p class="bus-n" aria-live="polite"></p>
-      <button type="button" class="bus-limpiar" hidden>Quitar filtros</button>`;
+      <div class="bus-pie">
+        <p class="bus-n" aria-live="polite"></p>
+        <div class="bus-filtros">
+          <button type="button" class="bus-filtrar" aria-haspopup="true" aria-expanded="false">Filtros<span class="bus-cuenta" hidden></span></button>
+          <div class="bus-menu" role="group" aria-label="Filtrar dispositivos" hidden>
+            <p class="bus-menu-t">Estado</p>
+            ${CHIPS.map((c) => `<button type="button" class="bus-op est-${c.estado}" data-estado="${c.estado}" aria-pressed="false"><span class="bus-caja" aria-hidden="true"></span>${c.texto}</button>`).join("")}
+            <p class="bus-menu-t">Hallazgos</p>
+            <button type="button" class="bus-op" data-hallazgos aria-pressed="false"><span class="bus-caja" aria-hidden="true"></span>Solo con hallazgos</button>
+            <button type="button" class="bus-limpiar" hidden>Quitar filtros</button>
+          </div>
+        </div>
+      </div>`;
 
     this.input = this.el.querySelector(".bus-input")!;
     this.conteo = this.el.querySelector(".bus-n")!;
@@ -48,6 +55,24 @@ export class Buscador {
     );
     this.el.querySelector("[data-hallazgos]")!.addEventListener("click", () => filtroState.alternarHallazgos());
     this.el.querySelector(".bus-limpiar")!.addEventListener("click", () => filtroState.limpiar());
+
+    // El menú se abre con el botón y se cierra con Esc o al pulsar fuera.
+    const boton = this.el.querySelector<HTMLButtonElement>(".bus-filtrar")!;
+    const menu = this.el.querySelector<HTMLElement>(".bus-menu")!;
+    const abrir = (si: boolean) => {
+      menu.hidden = !si;
+      boton.setAttribute("aria-expanded", String(si));
+    };
+    boton.addEventListener("click", () => abrir(menu.hidden));
+    document.addEventListener("pointerdown", (e) => {
+      if (!menu.hidden && !this.el.querySelector(".bus-filtros")!.contains(e.target as Node)) abrir(false);
+    });
+    this.el.querySelector(".bus-filtros")!.addEventListener("keydown", (e) => {
+      if ((e as KeyboardEvent).key !== "Escape" || menu.hidden) return;
+      e.stopPropagation();
+      abrir(false);
+      boton.focus();
+    });
 
     this.quitar = filtroState.subscribe((f) => this.pintar(f));
     this.pintar(filtroState.get());
@@ -77,7 +102,12 @@ export class Buscador {
     const h = this.el.querySelector<HTMLButtonElement>("[data-hallazgos]")!;
     h.classList.toggle("is-on", f.conHallazgos);
     h.setAttribute("aria-pressed", String(f.conHallazgos));
-    (this.el.querySelector(".bus-limpiar") as HTMLElement).hidden = !filtroActivo(f);
+    const n = f.estados.size + (f.conHallazgos ? 1 : 0);
+    const cuenta = this.el.querySelector<HTMLElement>(".bus-cuenta")!;
+    cuenta.hidden = n === 0;
+    cuenta.textContent = String(n);
+    this.el.querySelector(".bus-filtrar")!.classList.toggle("is-on", n > 0);
+    (this.el.querySelector(".bus-limpiar") as HTMLElement).hidden = n === 0;
   }
 }
 

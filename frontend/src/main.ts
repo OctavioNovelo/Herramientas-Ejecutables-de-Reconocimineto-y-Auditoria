@@ -4,8 +4,8 @@
 // paneles: encaja la red en lo que queda libre y lleva ahí el host que eliges.
 // El logo es el botón de inicio.
 
-import "@fontsource-variable/hanken-grotesk";
-import "@fontsource-variable/jetbrains-mono";
+import "@fontsource-variable/overpass";
+import "@fontsource-variable/overpass-mono";
 import "./styles/comun.css";
 import "./styles/panorama.css";
 import "./styles/temas.css";
@@ -17,10 +17,10 @@ import { filtroState, coincide, filtroActivo, tieneHallazgos } from "./state/fil
 import { ScanView } from "./components/ScanView";
 import { Senal } from "./components/Senal";
 import { Buscador } from "./components/Buscador";
-import { fichaHost, conectarFicha } from "./components/FichaHost";
+import { fichaHost, cabeceraHost, conectarFicha } from "./components/FichaHost";
 import { generarPlan, PRIORIDAD_TEXTO, Accion } from "./synthesis/plan";
 import type { Device } from "./api/heraApi";
-import { esc, estadoRed, estadoHost, ESTADO_FORMA, formatoReloj, contarHasta, Estado, respuestaSvg } from "./utils/security";
+import { esc, estadoRed, estadoHost, nombreDe, formatoReloj, contarHasta, Estado, respuestaSvg } from "./utils/security";
 import { tipoDe, iconoSvg, TIPOS } from "./utils/tipos";
 import { Temas, iniciarTema } from "./components/Temas";
 
@@ -64,9 +64,9 @@ app.innerHTML = `
     <div class="pie">
       <button type="button" class="pliegue" id="pliegue-izq" aria-controls="panel-izq" aria-expanded="true" title="Mostrar u ocultar el índice ([)">Índice</button>
       <p class="leyenda">
-        <span class="est-seguro">${ESTADO_FORMA.seguro} seguro</span>
-        <span class="est-alerta">${ESTADO_FORMA.alerta} revisar</span>
-        <span class="est-riesgo">${ESTADO_FORMA.riesgo} riesgo</span>
+        <span class="est-seguro">seguro</span>
+        <span class="est-alerta">revisar</span>
+        <span class="est-riesgo">riesgo</span>
         <span class="leyenda-nota">agrupados por tipo; más lejos del router, más latencia</span>
       </p>
       <button type="button" class="pliegue" id="pliegue-der" aria-controls="lado" aria-expanded="true" title="Mostrar u ocultar el panel derecho (])">Plan</button>
@@ -138,14 +138,14 @@ function pintarDiag(st: AppState) {
   const est = estadoRed(st.stats, st.hasResults);
   el.className = `diag est-${est}`;
   if (est === "sin-datos") {
-    el.innerHTML = `<p class="diag-frase">${ESTADO_FORMA["sin-datos"]} Aún no hay escaneos. Pulsa “Escanear la red” para empezar.</p>`;
+    el.innerHTML = `<p class="diag-frase">Aún no hay escaneos. Pulsa “Escanear la red” para empezar.</p>`;
     return;
   }
   const s = st.stats!;
   const sev = s.vulns_by_severity;
   const frase = { riesgo: "Tu red está en riesgo", alerta: "Tu red necesita una revisión", seguro: "Tu red está en orden" }[est];
   el.innerHTML = `
-    <p class="diag-frase">${ESTADO_FORMA[est]} ${frase}</p>
+    <p class="diag-frase">${frase}</p>
     <dl class="lecturas">
       <div><dt>dispositivos</dt><dd data-n="${s.active_devices}">0</dd></div>
       <div><dt>hallazgos</dt><dd data-n="${s.total_vulns}">0</dd></div>
@@ -190,15 +190,18 @@ function pintarIndice() {
     const delGrupo = visibles.filter((d) => estadoHost(d) === g.est);
     if (!delGrupo.length) return "";
     return `<section class="grupo est-${g.est}">
-      <h3 class="grupo-t">${ESTADO_FORMA[g.est]} ${g.titulo} <span>${delGrupo.length}</span></h3>
+      <h3 class="grupo-t">${g.titulo} <span>${delGrupo.length}</span></h3>
       <ul>${delGrupo
         .map((d) => {
           const h = d.vulnerabilities.length;
           const tipo = tipoDe(d);
           return `<li><button type="button" class="fila${d.ip === seleccionado ? " is-sel" : ""}" data-ip="${esc(d.ip)}" aria-current="${d.ip === seleccionado}">
             <span class="fila-ico" title="${TIPOS[tipo].nombre}">${iconoSvg(tipo, "ico", 16)}</span>
-            <span class="fila-ip">${esc(d.ip)}</span>
-            <span class="fila-nombre">${respuestaSvg(d.latency || 0)}${esc(d.device || "Sin nombre")}</span>
+            ${
+              nombreDe(d)
+                ? `<span class="fila-ip" title="${esc(nombreDe(d)!)}">${esc(nombreDe(d)!)}</span><span class="fila-nombre es-ip">${respuestaSvg(d.latency || 0)}${esc(d.ip)}</span>`
+                : `<span class="fila-ip es-ip">${esc(d.ip)}</span><span class="fila-nombre sin-nombre">${respuestaSvg(d.latency || 0)}Sin nombre</span>`
+            }
             <span class="fila-n">${d.ports.length} ${d.ports.length === 1 ? "puerto" : "puertos"}</span>
             ${h ? `<span class="fila-h">${h} ${h === 1 ? "hallazgo" : "hallazgos"}</span>` : tieneHallazgos(d) ? `<span class="fila-p">posibles</span>` : ""}
           </button></li>`;
@@ -273,11 +276,15 @@ document.addEventListener("keydown", (e) => {
 new ResizeObserver(() => margenes(false)).observe(escena);
 
 let acciones: Accion[] = [];
-// Al elegir un host, el panel derecho se abre con su ficha y el mapa lo lleva al centro de la
+// Con un host elegido, el panel derecho muestra primero qué hacer con él ("plan") y, con un
+// botón, su lámina (la ficha con las capas). Si no hay nada que hacer, va directo a la lámina.
+let modoLado: "plan" | "lamina" = "plan";
+// Al elegir un host, el panel derecho se abre con su plan y el mapa lo lleva al centro de la
 // zona libre (si ya se ve bien y lo elegiste en el mapa, no se mueve nada).
 function seleccionar(ip: string | null, desdeFuera = false) {
   const habia = seleccionado;
   seleccionado = ip;
+  if (ip !== habia) modoLado = "plan";
   senal.select(ip);
   pintarIndice();
   pintarLado(true);
@@ -292,11 +299,43 @@ function seleccionar(ip: string | null, desdeFuera = false) {
 function pintarLado(animar = false) {
   const el = document.getElementById("lado")!;
   const d = ultimo?.devices.find((x) => x.ip === seleccionado) ?? null;
-  document.body.classList.toggle("con-ficha", !!d);
-  document.getElementById("pliegue-der")!.textContent = d ? "Ficha" : "Plan";
+  const delHost = d ? generarPlan([d]).acciones : [];
+  const verPlan = !!d && modoLado === "plan" && delHost.length > 0;
+  const conLamina = !!d && !verPlan;
+  const cambiaAncho = document.body.classList.contains("con-ficha") !== conLamina;
+  document.body.classList.toggle("con-ficha", conLamina);
+  document.getElementById("pliegue-der")!.textContent = conLamina ? "Lámina" : "Plan";
+  // El panel cambia de ancho entre plan y lámina: el mapa recalcula su zona libre y, si el host
+  // elegido queda tapado, lo vuelve a traer a la vista.
+  if (cambiaAncho)
+    requestAnimationFrame(() => {
+      margenes();
+      if (d && !senal.estaALaVista(d.ip)) senal.centrarEn(d.ip, (ultimo?.devices.length ?? 0) > 12 ? 1.6 : 1);
+    });
   if (d) {
-    el.innerHTML = `<p class="lado-tipo">${iconoSvg(tipoDe(d), "ico", 15)} ${TIPOS[tipoDe(d)].nombre}<span class="lado-resp">${respuestaSvg(d.latency || 0)} ${(d.latency || 0).toFixed(1)} ms</span></p>${fichaHost(d, { animar })}`;
+    const modos = delHost.length
+      ? `<div class="lado-modos" role="tablist" aria-label="Qué ver de este dispositivo">
+          <button type="button" role="tab" data-modo="plan" aria-selected="${verPlan}">Qué hacer ahora <span>${delHost.length}</span></button>
+          <button type="button" role="tab" data-modo="lamina" aria-selected="${!verPlan}">Lámina</button>
+        </div>`
+      : "";
+    el.innerHTML = `<p class="lado-tipo">${iconoSvg(tipoDe(d), "ico", 15)} ${TIPOS[tipoDe(d)].nombre}<span class="lado-resp">${respuestaSvg(d.latency || 0)} ${(d.latency || 0).toFixed(1)} ms</span></p>
+      ${cabeceraHost(d)}
+      ${modos}
+      ${verPlan ? planHost(d, delHost) : fichaHost(d, { animar, cabecera: false })}`;
     conectarFicha(el, () => seleccionar(null));
+    el.querySelectorAll<HTMLButtonElement>("[data-modo]").forEach((b) =>
+      b.addEventListener("click", () => {
+        if (b.dataset.modo === modoLado) return;
+        modoLado = b.dataset.modo as "plan" | "lamina";
+        pintarLado(modoLado === "lamina");
+        el.querySelector<HTMLElement>(`[data-modo="${modoLado}"]`)?.focus();
+      })
+    );
+    el.querySelector("[data-ir-lamina]")?.addEventListener("click", () => {
+      modoLado = "lamina";
+      pintarLado(true);
+    });
     el.scrollTop = 0;
     return;
   }
@@ -312,7 +351,7 @@ function pintarLado(animar = false) {
             .map((a, i) => {
               const est = a.prioridad === "info" ? "sin-datos" : a.prioridad;
               return `<li class="accion est-${est}"><details ${i < 2 ? "open" : ""}>
-                <summary><span class="accion-prio">${ESTADO_FORMA[est]} ${PRIORIDAD_TEXTO[a.prioridad]}</span><span class="accion-t">${esc(a.titulo)}</span></summary>
+                <summary><span class="accion-prio">${PRIORIDAD_TEXTO[a.prioridad]}</span><span class="accion-t">${esc(a.titulo)}</span></summary>
                 <div class="accion-cuerpo">
                   <p class="accion-m">${esc(a.motivo)}</p>
                   <ul class="accion-p">${a.pasos.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>
@@ -325,6 +364,29 @@ function pintarLado(animar = false) {
     }
     <p class="lado-origen">Plan preliminar generado con reglas a partir del último escaneo.</p>`;
   el.querySelectorAll<HTMLButtonElement>(".accion-h button").forEach((b) => b.addEventListener("click", () => seleccionar(b.dataset.ip!, true)));
+}
+
+// Qué hacer con un solo dispositivo: cada acción como una tarjeta abierta, con el porqué y los
+// pasos numerados. Las acciones salen de generarPlan([d]), así que los títulos ya hablan de
+// este equipo (no de "n dispositivos"); se quita el "en <nombre>" porque ya está en la cabecera.
+function planHost(d: Device, lista: Accion[]): string {
+  const sufijo = ` en ${d.device || d.ip}`;
+  return `<ol class="plan-host">${lista
+    .map((a) => {
+      const est = a.prioridad === "info" ? "sin-datos" : a.prioridad;
+      const titulo = a.titulo.endsWith(sufijo) ? a.titulo.slice(0, -sufijo.length) : a.titulo;
+      const puertos = [...new Set(a.hosts.map((h) => h.puerto).filter((p) => p !== undefined && p !== ""))];
+      return `<li class="ph est-${est}">
+        <p class="ph-cab"><span class="accion-prio">${PRIORIDAD_TEXTO[a.prioridad]}</span>${puertos.length ? `<span class="ph-puerto">puerto ${puertos.map((p) => esc(String(p))).join(", ")}</span>` : ""}</p>
+        <h3 class="ph-t">${esc(titulo)}</h3>
+        <p class="ph-m">${esc(a.motivo)}</p>
+        <p class="ph-sub">Qué hacer</p>
+        <ol class="ph-pasos">${a.pasos.map((p) => `<li>${esc(p)}</li>`).join("")}</ol>
+      </li>`;
+    })
+    .join("")}</ol>
+    <p class="ph-pie">Puertos, servicios y capas del equipo: <button type="button" data-ir-lamina>ver la lámina</button>.</p>
+    <p class="lado-origen">Plan preliminar generado con reglas a partir del último escaneo.</p>`;
 }
 
 // ── Reactividad ─────────────────────────────────────────────────────────────

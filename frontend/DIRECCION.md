@@ -3,9 +3,10 @@
 Las mismas piezas de H, pero **el mapa es la pantalla**. La red desde el router ocupa todo el
 fondo y lo demás flota encima en dos paneles que se pliegan:
 
-- **Izquierda:** buscador, filtros e índice de hosts (botón "Índice" o tecla `[`).
-- **Derecha:** "Qué hacer ahora" o la ficha del host con las láminas de F (botón "Plan"/"Ficha"
-  o tecla `]`).
+- **Izquierda:** buscador, un botón "Filtros" (estado y hallazgos) e índice de hosts (botón "Índice" o tecla `[`).
+- **Derecha:** "Qué hacer ahora" de toda la red; al elegir un host, primero su propio "Qué hacer
+  ahora" y, con una pestaña, su lámina (la ficha con las capas de F). Si el host no tiene nada que
+  hacer, abre directo la lámina. Se pliega con el botón "Plan"/"Lámina" o la tecla `]`.
 - **Arriba, al centro:** el estado de la red en una cápsula.
 
 El mapa sabe qué parte tapan los paneles: encaja la red en la zona libre, y al elegir un host lo
@@ -15,7 +16,9 @@ Comparte con K: zoom y arrastre (rueda, + y −, doble clic, 0), índice y mapa 
 de puertos, barras de respuesta y el botón "Colores". Por defecto usa **Ocelo** (ciruela y
 turquesa del pavo real); las otras paletas están en el mismo botón.
 
-Hanken Grotesk + JetBrains Mono (nuevas, versiones 5.2.8 de 2025).
+Overpass (interfaz) + Overpass Mono (IPs y cifras), basadas en la Highway Gothic de la señalética
+de carreteras: se leen como rótulos técnicos, no como la sans de siempre. El estado se dice con color y
+texto, sin símbolos.
 Paneles opacos sin desenfoque: en WebKitGTK sin composición el blur repinta todo en cada cuadro.
 
 Verla: `npm install` y luego `npm run tauri:demogrande` (43 hosts) o `npm run tauri:demo`.

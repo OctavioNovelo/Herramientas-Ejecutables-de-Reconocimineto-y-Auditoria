@@ -13,7 +13,7 @@
 
 import { forceSimulation, forceRadial, forceX, forceY, forceCollide, SimulationNodeDatum } from "d3-force";
 import type { Device } from "../api/heraApi";
-import { esc, estadoHost, ESTADO_TEXTO, Estado } from "../utils/security";
+import { esc, estadoHost, ESTADO_TEXTO, Estado, nombreDe } from "../utils/security";
 import { tipoDe, TIPOS, ORDEN_TIPOS, Tipo, iconoEnSvg } from "../utils/tipos";
 
 const W = 820;
@@ -60,14 +60,9 @@ function ipNum(ip: string): number {
 const recortar = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 // Ancho aproximado de la etiqueta (nombre en sans 13 px, IP en mono 11.5 px). Se calcula del
 // texto y no con getBBox(), que da cero si el mapa está oculto en ese momento.
-const anchoEtq = (d: Device) => Math.max(recortar(d.device || "Sin nombre", 20).length * 7, d.ip.length * 7.6);
-
-function insignia(est: Estado, x: number, y: number): string {
-  const s = 5;
-  if (est === "riesgo") return `<path class="sn-insignia" d="M${x} ${y - s} L${x + s} ${y} L${x} ${y + s} L${x - s} ${y} Z"/>`;
-  if (est === "alerta") return `<path class="sn-insignia" d="M${x} ${y - s} L${x + s * 0.95} ${y + s * 0.72} H${x - s * 0.95} Z"/>`;
-  return "";
-}
+// La IP solo se muestra con el nodo elegido, así que la caja para evitar choques es la del nombre.
+const etiqueta = (d: Device) => recortar(nombreDe(d) ?? "Sin nombre", 20);
+const anchoEtq = (d: Device) => etiqueta(d).length * 7;
 
 // Arco de un sector (para la banda con el nombre del grupo).
 function arco(r: number, a0: number, a1: number): string {
@@ -300,10 +295,9 @@ export class Senal {
             <circle class="sn-halo" r="25"/>
             <circle class="sn-disco" r="18"/>
             ${iconoEnSvg(n.tipo, 0, 0, 18, "sn-ico")}
-            ${insignia(n.est, 12, -12)}
-            <g class="sn-etq" data-caja="${(fuera ? lx : lx - w).toFixed(0)},-13,${w.toFixed(0)},30">
-              <text class="sn-nombre" x="${lx}" y="-1" text-anchor="${fuera ? "start" : "end"}">${esc(recortar(n.d.device || "Sin nombre", 20))}</text>
-              <text class="sn-ip" x="${lx}" y="13" text-anchor="${fuera ? "start" : "end"}">${esc(n.d.ip)}</text>
+            <g class="sn-etq${nombreDe(n.d) ? "" : " sin-nombre"}" data-caja="${(fuera ? lx : lx - w).toFixed(0)},-9,${w.toFixed(0)},17">
+              <text class="sn-nombre" x="${lx}" y="4" text-anchor="${fuera ? "start" : "end"}">${esc(etiqueta(n.d))}</text>
+              <text class="sn-ip" x="${lx}" y="18" text-anchor="${fuera ? "start" : "end"}">${esc(n.d.ip)}</text>
             </g>
           </g>
         </g>`;
@@ -316,8 +310,7 @@ export class Senal {
             <circle class="sn-halo" r="34"/>
             <circle class="sn-disco" r="26"/>
             ${iconoEnSvg("router", 0, 0, 24, "sn-ico")}
-            ${insignia(estadoHost(hub), 20, -20)}
-            <text class="sn-hub-nombre" y="44" text-anchor="middle">${esc(recortar(hub.device || "Router", 24))}</text>
+            <text class="sn-hub-nombre" y="44" text-anchor="middle">${esc(recortar(nombreDe(hub) ?? "Router", 24))}</text>
             <text class="sn-ip" y="57" text-anchor="middle">${esc(hub.ip)}</text>
           </g>
         </g>`
@@ -382,14 +375,14 @@ export class Senal {
     return { s, tx, ty };
   }
 
-  private irA(destino: Zoom, animar: boolean) {
+  private irA(destino: Zoom, animar: boolean, enCurso = false) {
     const fin = this.ajustado ? destino : this.limitar(destino);
     if (this.animacion !== null) cancelAnimationFrame(this.animacion);
     this.animacion = null;
     const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (!animar || quieto) {
       this.z = { s: fin.s, tx: fin.tx, ty: fin.ty };
-      this.aplicarVista();
+      this.aplicarVista(enCurso);
       return;
     }
     // Transición corta y solo cuando la pide el usuario (botón, elegir un host).
@@ -407,7 +400,7 @@ export class Senal {
   }
 
   // Acerca o aleja manteniendo fijo el punto (px, py) del lienzo (por defecto, el centro libre).
-  private zoomEn(factor: number, px?: number, py?: number, animar = true) {
+  private zoomEn(factor: number, px?: number, py?: number, animar = true, enCurso = false) {
     const { w, h } = this.tam();
     const m = this.margenes;
     const x = px ?? m.izq + (w - m.izq - m.der) / 2;
@@ -419,11 +412,28 @@ export class Senal {
       return;
     }
     this.ajustado = false;
-    this.irA({ s, tx: x - ((x - this.z.tx) * s) / this.z.s, ty: y - ((y - this.z.ty) * s) / this.z.s }, animar);
+    this.irA({ s, tx: x - ((x - this.z.tx) * s) / this.z.s, ty: y - ((y - this.z.ty) * s) / this.z.s }, animar, enCurso);
   }
 
-  // enCurso: durante el gesto solo se mueve el viewBox; las etiquetas se recalculan al final.
+  // enCurso: durante un gesto (rueda, arrastre, animación) solo se mueve el viewBox y las
+  // etiquetas se recalculan al final. Los gestos llegan más rápido que los cuadros (un ratón de
+  // 1000 Hz manda decenas de eventos por cuadro): se junta todo en un solo repintado por cuadro.
+  private vistaPendiente: number | null = null;
   private aplicarVista(enCurso = false) {
+    if (enCurso && this.animacion === null) {
+      if (this.vistaPendiente === null)
+        this.vistaPendiente = requestAnimationFrame(() => {
+          this.vistaPendiente = null;
+          this.pintarVista(true);
+        });
+      return;
+    }
+    if (this.vistaPendiente !== null) cancelAnimationFrame(this.vistaPendiente);
+    this.vistaPendiente = null;
+    this.pintarVista(enCurso);
+  }
+
+  private pintarVista(enCurso: boolean) {
     const { w, h } = this.tam();
     const { s, tx, ty } = this.z;
     this.svg.setAttribute("viewBox", `${(-tx / s).toFixed(2)} ${(-ty / s).toFixed(2)} ${(w / s).toFixed(2)} ${(h / s).toFixed(2)}`);
@@ -447,7 +457,7 @@ export class Senal {
       (e) => {
         e.preventDefault();
         const r = this.svg.getBoundingClientRect();
-        this.zoomEn(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0018)), e.clientX - r.left, e.clientY - r.top, false);
+        this.zoomEn(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0018)), e.clientX - r.left, e.clientY - r.top, false, true);
       },
       { passive: false }
     );

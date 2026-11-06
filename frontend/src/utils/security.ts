@@ -13,7 +13,7 @@ export function esc(value: unknown): string {
     .replace(/'/g, "&#39;");
 }
 
-// Semáforo de 3 estados. Nunca se comunica solo por color: cada estado tiene forma y texto.
+// Semáforo de 3 estados. Nunca se comunica solo por color: cada estado lleva también su texto.
 export type Estado = "seguro" | "alerta" | "riesgo" | "sin-datos";
 
 export const ESTADO_TEXTO: Record<Estado, string> = {
@@ -23,13 +23,12 @@ export const ESTADO_TEXTO: Record<Estado, string> = {
   "sin-datos": "Sin diagnóstico",
 };
 
-// SVG de forma por estado (círculo, triángulo, rombo, anillo vacío), 12×12, currentColor.
-export const ESTADO_FORMA: Record<Estado, string> = {
-  seguro: `<svg class="hera-shape" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="currentColor"/></svg>`,
-  alerta: `<svg class="hera-shape" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1 L11.2 10.5 H0.8 Z" fill="currentColor"/></svg>`,
-  riesgo: `<svg class="hera-shape" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 0.6 L11.4 6 L6 11.4 L0.6 6 Z" fill="currentColor"/></svg>`,
-  "sin-datos": `<svg class="hera-shape" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
-};
+// Nombre del dispositivo si lo tiene de verdad (hostname o fabricante). utils/parser.py pone
+// "Dispositivo Desconocido" cuando no hay ninguno: eso no cuenta como nombre.
+export function nombreDe(d: { device?: string | null }): string | null {
+  const n = (d.device ?? "").trim();
+  return n && !/^dispositivo desconocido$/i.test(n) ? n : null;
+}
 
 export function estadoRed(stats: ScanStats | null, hasResults: boolean): Estado {
   if (!stats || !hasResults) return "sin-datos";

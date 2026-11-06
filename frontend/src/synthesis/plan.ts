@@ -5,6 +5,7 @@
 
 import type { Device } from "../api/heraApi";
 import { ADMIN_PORT_LABELS } from "../utils/portLabels";
+import { PUERTOS_SENSIBLES } from "../utils/security";
 
 export type Prioridad = "riesgo" | "alerta" | "info";
 
@@ -62,6 +63,17 @@ const REGLAS_PUERTO: ReglaPuerto[] = [
     pasos: ["Permite el acceso solo desde la IP de tu equipo de gestión.", "Bloquéalos desde la WAN en el firewall."],
   },
   {
+    puertos: [3306, 1433],
+    prioridad: "alerta",
+    titulo: (n) => (n > 1 ? `Cierra la base de datos expuesta en ${n} dispositivos` : "Cierra la base de datos expuesta"),
+    motivo: "MySQL o SQL Server aceptan conexiones desde la red: si la contraseña es débil o el servidor está desactualizado, cualquiera en la LAN puede leer o borrar los datos.",
+    pasos: [
+      "Si la base solo la usa ese mismo equipo, haz que escuche en localhost (bind-address = 127.0.0.1 en MySQL).",
+      "Si otros equipos la necesitan, permite el puerto en el firewall solo desde sus IP.",
+      "Revisa que ninguna cuenta (sobre todo root o sa) tenga contraseña vacía o por defecto.",
+    ],
+  },
+  {
     puertos: [1900],
     prioridad: "info",
     titulo: () => "Comprueba si necesitas UPnP",
@@ -105,6 +117,24 @@ export function generarPlan(devices: Device[]): Plan {
       motivo: `${regla.motivo} Visto en: ${puertos}.`,
       pasos: regla.pasos,
       hosts,
+    });
+  }
+
+  // 3. Red de seguridad: un puerto sensible pone al host "en alerta" (utils/security.ts); si
+  //    ninguna regla lo cubre, igual tiene que aparecer en el plan, nunca un host en alerta
+  //    sin nada que hacer.
+  const cubiertos = new Set(REGLAS_PUERTO.flatMap((r) => r.puertos));
+  for (const dev of devices) {
+    const sueltos = dev.ports.filter((p) => PUERTOS_SENSIBLES.has(p) && !cubiertos.has(p));
+    if (!sueltos.length) continue;
+    const lista = sueltos.map((p) => (ADMIN_PORT_LABELS[p] ? `${p} ${ADMIN_PORT_LABELS[p]}` : `${p}`)).join(", ");
+    acciones.push({
+      id: `sensible-${dev.ip}`,
+      prioridad: "alerta",
+      titulo: `Revisa los puertos sensibles de ${dev.device || dev.ip}`,
+      motivo: `Tiene abiertos puertos que suelen ser blanco de ataques: ${lista}.`,
+      pasos: ["Ciérralos si no los usas.", "Si los usas, limita en el firewall qué equipos pueden conectarse."],
+      hosts: sueltos.map((p) => ({ ip: dev.ip, nombre: dev.device, puerto: p })),
     });
   }
 
