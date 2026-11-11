@@ -37,7 +37,6 @@ Picar un ojo: las demás plumas se pliegan en haz y se apagan; la elegida se tie
 
 ## Sin terminar
 - Sin respaldo si no hay WebGL (pantalla sin abanico, aunque los botones y rótulos siguen).
-- "Personalizado" solo pide el rango, no los puertos.
 - La rueda de cartas no se probó en WebKitGTK (usa `preserve-3d`).
 - La duración anterior es una sola cifra de demostración (12 s) para todos los escaneos; el caso "tarda más que la vez anterior" está escrito pero la simulación no llega a él.
 - Los anillos agrupan servicios por familia con una regla mía (acceso remoto, web, archivos, correo, datos, impresión, medios, otros); no viene del backend.
@@ -55,9 +54,9 @@ Picar un ojo: las demás plumas se pliegan en haz y se apagan; la elegida se tie
 - Las cartas se regeneran con `python3 herramientas/tramar.py` desde `frontend/imagenes_claude/Cards` (esas fotos no están en el repositorio: falta confirmar su licencia).
 
 ## Pendiente antes de pasar a main
-- Linux (WebKitGTK, probado el 2026-11-10 con `npm run tauri:demogrande`): el abanico WebGL se dibuja bien. La app arranca con `WEBKIT_DISABLE_COMPOSITING_MODE=1` y eso aplana la rueda de cartas (sin perspectiva). Hay un respaldo que lo detecta e imita la profundidad con escala, pero no se ha visto en pantalla. Falta decidir si se puede quitar esa variable (probar `WEBKIT_DISABLE_COMPOSITING_MODE=0 npm run tauri:demogrande`) y medir los cuadros por segundo.
+- Linux (WebKitGTK 2.54, Wayland/Hyprland con NVIDIA, medido el 2026-11-11 dentro de la app a 1896x983): la app arrancaba con `WEBKIT_DISABLE_COMPOSITING_MODE=1` y `WEBKIT_DISABLE_DMABUF_RENDERER=1`, y todo se pintaba por CPU: la rueda de cartas sin 3D, a 35 fps quieta y 22 girando (el resto a 63). Poner solo la primera en 0 no cambia nada; quitar las dos cierra la ventana (Error 71). Ahora `main.rs` solo pone `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`: composición por GPU, CSS 3D real y 63 fps en todas las vistas. `__NV_DISABLE_EXPLICIT_SYNC=1` también funciona (60 fps); `GDK_BACKEND=x11` no. Si alguien apaga la composición por entorno, el backend lo dice (`sin_composicion`) y la rueda se proyecta a mano en 2D (`.plano`, sin trapecio). En las mediciones hubo pausas sueltas de 2 a 30 s sin cuadros, con y sin composición; no sé si es la ventana oculta o un cuelgue. Sin probar en Intel/AMD, X11 ni otros compositores.
 - Windows (WebView2) y macOS (WKWebView): sin probar. La ventana nativa mide como mínimo 1024x680 y el diseño está afinado desde 1257x662.
-- Funciones del frontend anterior que Argos aún no ofrece: objetivo (IP o rango) en los escaneos que no son Personalizado, evasión de firewall en Dispositivos ocultos, Full pack y Personalizado, y los parámetros de Personalizado (protocolo, tipo TCP, ritmo, puertos). Hoy Personalizado usa TCP SYN, T4 y los 1000 puertos más comunes.
+- Funciones del frontend anterior que Argos aún no ofrece: objetivo (IP o rango) en los escaneos que no son Personalizado. Personalizado abre un diálogo con objetivo, protocolo, tipo TCP, intensidad, puertos y evasión; Dispositivos ocultos y Full pack abren el mismo diálogo solo con la evasión.
 - Los resultados por categoría (lo que encontró solo el último escaneo de un tipo) ya no tienen pantalla propia: todo se lee en el abanico combinado.
 - Más de unos 80 equipos: las tres hileras no alcanzan. Más de unos 300: hay que pasar los valores por textura.
 - Licencia de las fotos de las cartas.

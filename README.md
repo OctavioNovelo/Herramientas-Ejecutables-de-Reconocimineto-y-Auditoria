@@ -67,6 +67,8 @@ De las 3 categorías de herramientas planeadas, solo
 permiten activar fragmentación, señuelos y orden aleatorio de hosts. Va **apagada por
 defecto**: HERA audita tu propia red, donde esconderse no aporta y vuelve el escaneo más lento
 y menos preciso. Sirve para comprobar si tu propio firewall/IDS detecta un escaneo sigiloso.
+En la interfaz gráfica, al lanzar uno de esos escaneos se abre un diálogo que lo pregunta;
+el de Personalizado pide ahí mismo el objetivo, el protocolo, el tipo TCP, la intensidad y los puertos.
 
 **Nota de diseño importante:** por defecto, HERA audita la **subred local**, detectada automáticamente vía `ip route` (Linux/macOS) o `ipconfig`
 (Windows) — el objetivo es mapear los dispositivos de tu propia red (routers, IoT,
@@ -90,6 +92,10 @@ sistema operativo) en vez de alternativas como Electron. Las razones concretas:
   completo dentro de la app — usa el WebView que el sistema operativo ya trae
   (WebKitGTK en Linux, WebView2 en Windows, WebKit en macOS). Esto resulta en
   instaladores de unos pocos MB en vez de cientos de MB.
+  En Linux la app arranca WebKitGTK con `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`: mantiene la
+  aceleración por GPU y evita que la ventana se cierre en Wayland con NVIDIA ("Error 71").
+  Si en tu equipo la ventana no abre o se ve mal, lanza la app con
+  `WEBKIT_DISABLE_COMPOSITING_MODE=1` (todo se pinta por CPU: más lento y sin 3D en las cartas).
 - **Rust como capa de seguridad entre la interfaz web y el sistema.** El frontend
   (TypeScript, corriendo en el WebView) no tiene acceso directo al sistema de archivos ni
   puede lanzar procesos por sí mismo. Todo pasa por comandos explícitos que Rust expone

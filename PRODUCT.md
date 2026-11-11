@@ -34,7 +34,7 @@ Sesiones de escritorio. Los escaneos tardan minutos y son cancelables; el backen
 - Vulnerar: planeado, sin desarrollo; aparece como "pronto". No existe "Penetrar" ni "Resumen".
 - El logo con el título HERA es el botón de inicio. Búsqueda y filtros de equipos.
 - Español. Cero emojis.
-- WebKitGTK en Linux sin composición: SVG animado por cuadro y blur salen caros; WebGL medido a 60 fps en la configuración de la app. Sin probar en WebView2 ni WKWebView.
+- WebKitGTK en Linux: desde el 2026-11-11 la app arranca con composición por GPU (`WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`), 63 fps medidos en todas las vistas de Argos en Wayland con NVIDIA. Sin composición (`WEBKIT_DISABLE_COMPOSITING_MODE=1`) no hay CSS 3D y el SVG animado, el blur y las cartas salen caros. Sin probar en WebView2 ni WKWebView.
 
 ## Brand Commitments
 

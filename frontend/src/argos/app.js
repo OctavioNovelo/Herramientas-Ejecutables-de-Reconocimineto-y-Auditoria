@@ -161,7 +161,6 @@ export function montar(H, puente) {
     S.vista = vista; S.hover = -1; S.accion = null; S.parte = null;
     if (vista !== "plan") S.fija = null;
     document.body.dataset.vista = vista;
-    if (vista === "lanzar") setTimeout(medirPlano, 1500);
     const h = "#" + vista + (vista === "equipo" ? "=" + E[S.sel].ip : "");
     if (location.hash !== h && !opc.sinHash) history.replaceState(null, "", h);
     if (vista === "equipo") ficha();
@@ -210,33 +209,52 @@ export function montar(H, puente) {
   const SUBS = { Mapear: "Despliega el abanico: qué equipos hay y qué tienen abierto.", Detectar: "Abre los ojos: busca fallos en lo que ya está mapeado.", Vulnerar: "Comprobar los fallos de forma controlada. Aún no está disponible." };
   const TRAMAS = ["iris", "io", "cerbero", "esfinge", "argos", "hefesto", "aquiles", "atenea", "heracles"];   // un personaje por carta, en trama de puntos (tramar.py)
   const NM = H.ESCANEOS.mapear.length, RUEDAS = [{ n: "Mapear", de: 0, hasta: NM }, { n: "Detectar", de: NM, hasta: CARTAS.length }], rueda = $("#cartas");
-  rueda.innerHTML = CARTAS.map(([g, n, d, t, cat], k) => `<li class="carta${g === "Vulnerar" ? " pronto" : ""}" data-k="${k}"><i class="trama" style="--m:url(${trama(TRAMAS[k])})" aria-hidden="true"></i><p class="gr">${g}</p><h3>${n}</h3><p class="d">${d}</p>${n === "Personalizado" ? '<label for="rg">Rango o equipo</label><div class="campo"><input id="rg" placeholder="${esc(H.red)}" spellcheck="false" autocomplete="off"></div>' : ""}
+  rueda.innerHTML = CARTAS.map(([g, n, d, t, cat], k) => `<li class="carta${g === "Vulnerar" ? " pronto" : ""}" data-k="${k}"><i class="trama" style="--m:url(${trama(TRAMAS[k])})" aria-hidden="true"></i><p class="gr">${g}</p><h3>${n}</h3><p class="d">${d}</p>
     <p class="base"><span class="dur">${g === "Vulnerar" ? "aún no disponible" : cat.falta ? "<small>hay que descargarlo</small>" + esc(cat.falta) : t ? "<small>la última vez</small>" + esc(t) : "sin registro"}</span><button class="vano lleno" aria-label="Lanzar: ${esc(n)}. ${esc(d)}"${g === "Vulnerar" ? " disabled" : ""}>${g === "Vulnerar" ? "Pronto" : cat.falta ? "Instalar " + esc(cat.requiresTool) : "Lanzar"}</button></p></li>`).join("");
   $("#lz-fondo").innerHTML = TRAMAS.map((t) => `<i style="--m:url(${trama(t)})"></i>`).join(""); const ecos = $$("#lz-fondo i");   // el personaje de la carta de enfrente, enorme y tenue, llena el fondo
   const cartas = $$(".carta", rueda), alFrente = () => Math.round(giro), sitio = [0, NM];
   let cual = 0, giro = 0, arr = null, arrastro = false, tRueda = 0;
   function girar(g, foco) {     // g: índice de la carta que queda al frente (con decimales mientras se arrastra); no sale de su rueda
     const r = RUEDAS[cual]; giro = Math.max(r.de, Math.min(r.hasta - 1, g));
-    const k = (sitio[cual] = alFrente()), gr = CARTAS[k][0];
+    const k = (sitio[cual] = alFrente()), gr = CARTAS[k][0], R = rueda.offsetWidth * 2.2;
     cartas.forEach((c, j) => {
       const en = j >= r.de && j < r.hasta, d = en ? Math.min(4, Math.abs(j - k)) : 9;
-      c.style.setProperty("--k", j - giro); c.style.setProperty("--s", (1500 / (1500 + rueda.offsetWidth * 2.2 * (1 - Math.cos((j - giro) * 0.4538)))).toFixed(3)); c.style.setProperty("--dx", en ? "0px" : j < r.de ? "-70vw" : "70vw");   // la otra rueda espera fuera, de su lado
+      c.style.setProperty("--k", j - giro); c.style.setProperty("--dx", en ? "0px" : j < r.de ? "-70vw" : "70vw");   // la otra rueda espera fuera, de su lado
+      // la misma rueda proyectada a mano (perspectiva de 1500px), para el respaldo .plano de argos.css
+      const th = (j - giro) * 0.4538, cs = Math.cos(th), s = 1500 / (1500 + R * (1 - cs)), p = (n, v) => c.style.setProperty(n, v);
+      p("--px", (s * R * Math.sin(th)).toFixed(1) + "px"); p("--py", (s * R * 0.122 * (cs - 1)).toFixed(1) + "px"); p("--sx", (s * Math.max(0.05, cs)).toFixed(3)); p("--s", s.toFixed(3)); p("--sk", (-th * 6).toFixed(2) + "deg"); p("--z", 9 - d);
       c.dataset.d = d; c.classList.toggle("fuera", !en); $$("button, input", c).forEach((el) => (el.tabIndex = d ? -1 : 0));
     });
     ecos.forEach((e, j) => e.classList.toggle("ve", j === k));
     $("#lz-grupo").textContent = gr; $("#lz-sub").textContent = SUBS[gr]; $("#lz-pie").textContent = `${k - r.de + 1} de ${r.hasta - r.de}. Gira con las flechas, la rueda o arrastrando.`;
     if (foco) { const el = $("button:not(:disabled)", cartas[k]); el && el.focus({ preventScroll: true }); }
   }
-  // Sin composición acelerada (WebKitGTK, tal como arranca la app en Linux) el 3D de CSS se aplana: se nota en que
-  // la carta de lado mide de alto lo mismo que la de enfrente. Entonces la profundidad se imita con escala (.plano en argos.css).
-  function medirPlano() { const a = $('.carta[data-d="0"]'), b = $('.carta[data-d="1"]'); if (S.vista === "lanzar" && a && b) $("#lanzar").classList.toggle("plano", Math.abs(a.getBoundingClientRect().height - b.getBoundingClientRect().height) < 1); }
+  // Sin composición acelerada (WebKitGTK, tal como arranca la app en Linux) el 3D de CSS se pinta aplanado. Medirlo no sirve
+  // (las cajas se calculan con el 3D aunque no se pinte), así que lo dice quien monta la vista: H.plano.
+  $("#lanzar").classList.toggle("plano", !!H.plano);
   function cambiar(a, k, foco) {
     cual = a; const b = $("#lz-otra"), otra = RUEDAS[1 - a].n;
     b.dataset.lado = a ? "izq" : "der"; b.setAttribute("aria-label", "Ir a " + otra); b.lastChild.textContent = otra;
     girar(k === undefined ? sitio[a] : k, foco);
   }
   $("#lz-otra").addEventListener("click", () => cambiar(1 - cual));
-  const lanzarCarta = (k) => { const [g, n, , , cat] = CARTAS[k]; if (g === "Vulnerar") return; cat.falta ? instalar(k) : puente.lanzar(cat, n === "Personalizado" ? $("#rg").value : ""); };
+  const lanzarCarta = (k) => { const [g, , , , cat] = CARTAS[k]; if (g === "Vulnerar") return; if (cat.falta) return instalar(k); const p = cat.id === "custom"; if (!p && !cat.supportsEvasion) return puente.lanzar(cat, ""); catPers = cat; $("#pers-t").textContent = cat.label; $("#p-pers").hidden = $("#p-pers").disabled = !p; $("#p-evasion").checked = false; pers.returnValue = ""; ajustarPers(); pers.showModal(); };
+  // Un diálogo para las cartas con opciones: Personalizado pide todo; las que admiten evasión, solo eso. El backend valida de nuevo (tools/nmap.py).
+  const pers = $("#pers"), pv = $("#p-valor"), MODOS = { top: ["Cuántos puertos, los más comunes", "1000", "[1-9]\\d{0,4}"], specific: ["Puertos o rangos, separados por comas", "80,443,8000-8100", "\\d{1,5}(-\\d{1,5})?(\\s*,\\s*\\d{1,5}(-\\d{1,5})?)*"], ratio: ["Frecuencia mínima, de 0 a 1", "0.5", "0?\\.\\d+|[01]"] };
+  let catPers = null; $("#rg").placeholder = H.red;
+  function ajustarPers(ev) {
+    $("#p-tipo").disabled = $("#p-proto").value !== "tcp";
+    const m = MODOS[$("#p-modo").value]; pv.disabled = !m; $("#p-valor-f").hidden = !m; if (!m) return;
+    $("#p-valor-l").textContent = m[0]; pv.placeholder = m[1]; pv.pattern = m[2];
+    if (ev && ev.target.id === "p-modo") pv.value = $("#p-modo").value === "top" ? "1000" : "";
+  }
+  pers.addEventListener("change", ajustarPers);
+  pers.addEventListener("close", () => {
+    if (pers.returnValue !== "si") return;
+    const tcp = $("#p-proto").value === "tcp", evasion = $("#p-evasion").checked;
+    if (catPers.id !== "custom") return puente.lanzar(catPers, "", { evasion });
+    puente.lanzar(catPers, $("#rg").value, { protocol: $("#p-proto").value, tcpType: tcp ? $("#p-tipo").value : undefined, timing: +$("#p-ritmo").value, portMode: $("#p-modo").value, portValue: pv.disabled ? "" : pv.value.trim(), evasion });
+  });
   async function instalar(k) {   // la herramienta que falta se descarga solo cuando la persona pulsa "Instalar"
     const cat = CARTAS[k][4], b = $("button", cartas[k]); b.disabled = true; b.textContent = "Instalando";
     try { await puente.instalar(cat.requiresTool); cat.falta = null; b.textContent = "Lanzar"; $(".dur", cartas[k]).textContent = "sin registro"; avisar(cat.requiresTool + " quedó instalado."); }
@@ -248,7 +266,6 @@ export function montar(H, puente) {
     if (+c.dataset.d) return girar(+c.dataset.k, true);   // una carta de lado viene al frente
     if (ev.target.closest("button")) lanzarCarta(+c.dataset.k);
   });
-  rueda.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && ev.target.id === "rg") lanzarCarta(alFrente()); });
   rueda.addEventListener("pointerdown", (ev) => { if (!ev.target.closest("input")) arr = { x: ev.clientX, g: giro }; });
   addEventListener("pointermove", (ev) => {
     if (!arr) return; const dx = ev.clientX - arr.x; if (!arrastro && Math.abs(dx) < 6) return;
@@ -256,7 +273,7 @@ export function montar(H, puente) {
   });
   const soltar = () => { if (!arr) return; arr = null; rueda.classList.remove("arrastra"); if (arrastro) girar(alFrente()); setTimeout(() => (arrastro = false), 0); };
   addEventListener("pointerup", soltar); addEventListener("pointercancel", soltar);
-  $("#lanzar").addEventListener("wheel", (ev) => { ev.preventDefault(); if (ahora - tRueda < 240) return; tRueda = ahora; girar(alFrente() + (ev.deltaY + ev.deltaX > 0 ? 1 : -1)); }, { passive: false });
+  $("#lanzar").addEventListener("wheel", (ev) => { if (pers.open) return; ev.preventDefault(); if (ahora - tRueda < 240) return; tRueda = ahora; girar(alFrente() + (ev.deltaY + ev.deltaX > 0 ? 1 : -1)); }, { passive: false });
   cambiar(0);
 
   // ---- escaneo: el backend no da avance, solo se sabe el tiempo y lo que tardó la vez anterior.
@@ -402,6 +419,7 @@ export function montar(H, puente) {
     if (ev.key === "Home") ojos[0].focus(); if (ev.key === "End") ojos[N - 1].focus();
   });
   addEventListener("keydown", (ev) => {
+    if (pers.open) return;   // el diálogo se queda con Esc y las flechas
     const enCampo = /INPUT|TEXTAREA/.test(document.activeElement.tagName);
     if (ev.key === "Escape") { if (S.scan) return; if (enCampo && campo.value) { campo.value = ""; campo.dispatchEvent(new Event("input")); return; } ir(S.vista === "equipo" ? S.antes : "red"); }
     if (ev.key === "/" && !enCampo && S.vista === "red") { ev.preventDefault(); campo.focus(); }

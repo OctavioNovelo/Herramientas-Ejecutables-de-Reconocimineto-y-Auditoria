@@ -773,16 +773,22 @@ except Exception as e:
     Ok("El escaneo personalizado se completó correctamente y los datos han sido guardados.".to_string())
 }
 
+// Sin composición acelerada (alguien la apagó por entorno) WebKitGTK no pinta CSS 3D; la interfaz usa su respaldo en 2D.
+#[tauri::command]
+fn sin_composicion() -> bool {
+    cfg!(target_os = "linux") && std::env::var("WEBKIT_DISABLE_COMPOSITING_MODE").map_or(false, |v| v != "0")
+}
+
 fn main() {
     #[cfg(target_os = "linux")]
     {
-        if std::env::var("WEBKIT_DISABLE_COMPOSITING_MODE").is_err() {
-            std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
-        }
-        // WebKitGTK + Wayland + NVIDIA: el renderer DMABUF cierra la ventana al abrir
-        // ("Error 71 (Protocol error) dispatching to Wayland display").
-        if std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").is_err() {
-            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        // WebKitGTK + Wayland + NVIDIA: el renderer DMABUF cierra la ventana al abrir ("Error 71 (Protocol error)
+        // dispatching to Wayland display"). Antes se apagaban el renderer y la composición, y todo se pintaba por CPU
+        // (la rueda de cartas a 20 fps y sin 3D). Pasar los cuadros por memoria compartida evita el cierre y deja la
+        // GPU: 63 fps medidos en RTX 5060 Ti + Hyprland. Si en otro equipo falla, WEBKIT_DISABLE_COMPOSITING_MODE=1
+        // por entorno vuelve al modo anterior.
+        if std::env::var("WEBKIT_DMABUF_RENDERER_FORCE_SHM").is_err() {
+            std::env::set_var("WEBKIT_DMABUF_RENDERER_FORCE_SHM", "1");
         }
     }
 
@@ -794,6 +800,7 @@ fn main() {
         get_dashboard_data,
         get_category_results,
         get_tool_status,
+        sin_composicion,
         install_tool,
         trigger_nmap_scan,
         trigger_custom_scan,

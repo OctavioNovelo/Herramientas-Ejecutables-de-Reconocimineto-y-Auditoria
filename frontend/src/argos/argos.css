@@ -190,8 +190,6 @@ dt { color: var(--hueso-2); } dd { margin: 0; }
 .carta h3 { font-size: calc(var(--ch) * .052); line-height: 1.15; }
 .carta .d { font: 400 calc(var(--ch) * .037)/1.35 var(--serif); text-wrap: balance; }
 .carta.pronto { color: var(--hueso-2); }
-.carta label { font-size: 13px; }
-.carta .campo input { font: 14px var(--mono); padding: 4px 0; }
 .carta .base { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 40px; margin-top: 8px; }
 .carta .dur { font: 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--hueso); white-space: nowrap; }
 .carta .dur small { display: block; font: 12px var(--sans); color: var(--hueso-2); }
@@ -222,5 +220,28 @@ dt { color: var(--hueso-2); } dd { margin: 0; }
 /* sin WebGL no hay abanico: los ojos se dibujan como aros para que la red siga siendo recorrible */
 .sin-gl .ojo { box-shadow: inset 0 0 0 1.5px var(--hueso-2); }
 .sin-gl .ojo[data-e="alerta"] { box-shadow: inset 0 0 0 2px var(--ambar); } .sin-gl .ojo[data-e="riesgo"] { box-shadow: inset 0 0 0 3px var(--brasa); }
-/* la rueda sin 3D real (ver medirPlano en app.js): las cartas de lado se achican según su fondo */
-#lanzar.plano .carta { scale: var(--s, 1); }
+/* la rueda sin 3D real (H.plano): cada carta va proyectada a mano en 2D (girar() en app.js). Solo se pintan dos por lado
+   y el fondo va sin máscara, porque aquí todo se repinta por CPU. shortcut: sin trapecio, una transformación 2D no da perspectiva; se arregla activando la composición. */
+#lanzar.plano #cartas { transform: none; }
+#lanzar.plano .carta { z-index: var(--z); transform: translate(calc(var(--dx, 0px) + var(--px)), var(--py)) scale(var(--sx), var(--s)) skewY(var(--sk)); }
+#lanzar.plano #cartas:not(.arrastra) .carta { transition: transform .4s var(--sale), opacity .3s, box-shadow .2s; }
+#lanzar.plano .carta:is([data-d="3"], [data-d="4"]) { opacity: 0; pointer-events: none; }
+#lanzar.plano #lz-fondo { -webkit-mask-image: none; mask-image: none; }
+#lanzar.plano #lz-fondo i { scale: 1; transition: opacity .4s; }
+
+/* opciones de Personalizado */
+#pers { margin: auto; width: min(440px, 92vw); padding: 24px 26px 20px; border: 0; border-radius: 4px 28px; background: var(--tinta-2); color: var(--hueso); box-shadow: inset 0 0 0 1px var(--hilo), 0 30px 80px -20px #000; }
+#pers::backdrop { background: rgba(4,9,18,.72); }
+#pers form { display: grid; gap: 4px; }
+#pers h2 { margin-bottom: 10px; }
+#pers .par { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; margin: 12px 0; }
+#pers fieldset { display: grid; gap: 4px; min-width: 0; padding: 0; border: 0; } #pers fieldset[hidden] { display: none; }
+/* sin apariencia nativa: WebKitGTK pinta el select con el tema claro de GTK y el texto hueso no se lee */
+#pers select { -webkit-appearance: none; appearance: none; width: 100%; min-height: 38px; padding: 0 26px 0 8px; font: 15px var(--sans); color: var(--hueso); border: 0; border-bottom: 1px solid var(--hilo); border-radius: 0; background: var(--tinta) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 8l5 5 5-5' fill='none' stroke='%23ece5d2' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") right 6px center / 16px no-repeat; }
+#pers option { background: var(--tinta); color: var(--hueso); }
+#pers select:disabled { opacity: .45; }
+#pers .campo input { font-family: var(--mono); }
+#pers .campo:has(:invalid:not(:placeholder-shown)) { border-color: var(--brasa); }
+#pers .casilla { display: flex; align-items: center; gap: 8px; margin-top: 12px; font: 15px var(--sans); color: var(--hueso); }
+#pers .casilla input { width: 18px; height: 18px; accent-color: var(--pavo); }
+#pers .base { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }

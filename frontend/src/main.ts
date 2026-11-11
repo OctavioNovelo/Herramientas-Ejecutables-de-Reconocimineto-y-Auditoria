@@ -13,6 +13,7 @@ import { SCAN_CATEGORIES } from "./state/viewState";
 const capa = document.querySelector<HTMLElement>("#capa")!;
 const esqueleto = capa.innerHTML; // la vista escribe dentro; al remontar se parte de limpio
 
+const plano = heraApi.sinComposicion().catch(() => false);
 let vista: Vista | null = null;
 let categorias: Record<string, CategoryResult | undefined> = {};
 let escaneo: { grupo: string; nombre: string; t0: number; cancelado: boolean } | null = null;
@@ -37,14 +38,13 @@ async function remontar(st: AppState) {
   capa.innerHTML = esqueleto;
   const viejo = document.querySelector("#gl")!, lienzo = viejo.cloneNode() as HTMLCanvasElement; // un lienzo nuevo: el contexto WebGL anterior se soltó
   viejo.replaceWith(lienzo);
-  vista = montar(armar({ devices: st.devices, stats: st.stats, hostInfo: st.hostInfo, categorias, faltan }), {
-    lanzar(cat, objetivo) {
+  vista = montar({ ...armar({ devices: st.devices, stats: st.stats, hostInfo: st.hostInfo, categorias, faltan }), plano: await plano }, {
+    lanzar(cat, objetivo, opciones) {
       const previo = categorias[cat.id]?.scan_time;
       escaneo = { grupo: cat.group === "detectar" ? "Detectar" : "Mapear", nombre: cat.label, t0: performance.now(), cancelado: false };
       vista!.escaneando({ ...escaneo, previo: previo?.segundos ?? 0, previoTxt: previo?.duracion_str ?? "" });
-      // Personalizado usa los valores por defecto del formulario anterior (TCP SYN, T4, los 1000 puertos más comunes).
-      if (cat.id === "custom") scanState.startCustomScan({ protocol: "tcp", tcpType: "syn", timing: 4, portMode: "top", portValue: "1000", target: objetivo });
-      else scanState.startScan(cat.id, objetivo, false, cat.label);
+      if (cat.id === "custom") scanState.startCustomScan({ protocol: "tcp", tcpType: "syn", timing: 4, portMode: "top", portValue: "1000", ...opciones, target: objetivo });
+      else scanState.startScan(cat.id, objetivo, opciones?.evasion ?? false, cat.label);
     },
     cancelar() {
       if (escaneo) escaneo.cancelado = true;

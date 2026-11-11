@@ -43,6 +43,7 @@ export interface Modelo {
   titulo: string;
   pie: string;
   red: string;
+  plano?: boolean;   // el webview no pinta CSS 3D: la rueda de cartas usa su respaldo en 2D
 }
 
 // Orden del abanico: la red (con el router) queda al centro.

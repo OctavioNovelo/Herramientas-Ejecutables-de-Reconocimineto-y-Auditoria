@@ -61,6 +61,24 @@ El esqueleto de la interfaz de HERA (dirección visual Argos, ver docs/ui/ARGOS.
     <ul id="cartas"></ul>
     <button id="lz-otra" class="vano"><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M7 3l7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span></span></button>
     <p class="pie" id="lz-pie"></p>
+    <dialog id="pers" aria-labelledby="pers-t">
+      <form method="dialog">
+        <h2 id="pers-t">Personalizado</h2>
+        <fieldset id="p-pers">
+        <label for="rg">Rango o equipo</label><div class="campo"><input id="rg" spellcheck="false" autocomplete="off"></div>
+        <div class="par">
+          <div><label for="p-proto">Protocolo</label><select id="p-proto"><option value="tcp">TCP</option><option value="udp">UDP</option><option value="sctp">SCTP</option></select></div>
+          <div><label for="p-tipo">Tipo de escaneo</label><select id="p-tipo"><option value="syn">SYN</option><option value="connect">Connect</option><option value="fin">FIN</option><option value="null">NULL</option><option value="xmas">Xmas</option></select></div>
+          <div><label for="p-ritmo">Intensidad</label><select id="p-ritmo"><option value="1">T1, la más lenta</option><option value="2">T2</option><option value="3">T3</option><option value="4" selected>T4</option><option value="5">T5, la más rápida</option></select></div>
+          <div><label for="p-modo">Puertos</label><select id="p-modo"><option value="top">Los más comunes</option><option value="specific">Los que yo diga</option><option value="ratio">Por frecuencia</option><option value="all">Todos</option></select></div>
+        </div>
+        <div id="p-valor-f"><label for="p-valor" id="p-valor-l"></label><div class="campo"><input id="p-valor" value="1000" required spellcheck="false" autocomplete="off"></div></div>
+        </fieldset>
+        <label class="casilla"><input type="checkbox" id="p-evasion">Evadir firewall o IDS</label>
+        <p class="sub">Fragmenta los paquetes, usa señuelos y desordena los equipos. Tarda más.</p>
+        <p class="base"><button class="vano" value="no" formnovalidate>Cancelar</button><button class="vano lleno" value="si">Lanzar</button></p>
+      </form>
+    </dialog>
   </section>
 
   <section id="escaneo" aria-label="Escaneo en curso">

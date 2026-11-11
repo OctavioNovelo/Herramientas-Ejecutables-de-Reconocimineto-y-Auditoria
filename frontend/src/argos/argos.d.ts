@@ -1,8 +1,9 @@
 // Tipos de la vista Argos (app.js y pluma.js son JavaScript: el código del prototipo aprobado, casi sin tocar).
 declare module "*/argos/app.js" {
   import type { Modelo, Categoria } from "./datos";
+  import type { CustomScanParams } from "../api/heraApi";
   export interface Puente {
-    lanzar(cat: Categoria, objetivo: string): void;
+    lanzar(cat: Categoria, objetivo: string, opciones?: Partial<Omit<CustomScanParams, "target">>): void;   // Personalizado manda todas; las cartas con evasión, solo esa
     cancelar(): void;
     instalar(herramienta: string): Promise<unknown>;
   }

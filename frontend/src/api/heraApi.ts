@@ -242,6 +242,11 @@ export const heraApi = {
     });
   },
 
+  // ¿El webview de Linux corre sin composición acelerada? Entonces no pinta CSS 3D (sin_composicion en main.rs).
+  async sinComposicion(): Promise<boolean> {
+    return isTauri() ? await invoke<boolean>("sin_composicion") : false;
+  },
+
   // ¿Está instalada la herramienta extra de una categoría? (ScanCategory.requiresTool)
   async getToolStatus(tool: string): Promise<ToolStatus> {
     if (isDemoMode()) return { installed: true, version: null, download_size: null };
