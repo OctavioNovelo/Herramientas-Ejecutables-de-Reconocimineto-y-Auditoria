@@ -1,3 +1,5 @@
+> **Aviso (rama `ui/argos`).** La interfaz se rehízo con la dirección visual Argos. La estructura de `src/` que describe este documento (components, styles, NavBar) ya no existe en esta rama: la vigente está en `docs/ui/ARGOS.md`. El puente con Rust y Python (`src/api`, `src/state/scanState.ts`, `src-tauri`) sigue igual.
+
 # Guía de desarrollo — Interfaz nativa de HERA
 
 La interfaz está escrita en **TypeScript vanilla**, envuelta en

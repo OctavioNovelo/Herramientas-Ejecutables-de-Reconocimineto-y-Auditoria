@@ -1,15 +1,86 @@
 <!--
-El punto de anclaje visual (viewport) donde Tauri montará los componentes de la interfaz de escritorio de HERA.
+El esqueleto de la interfaz de HERA (dirección visual Argos, ver docs/ui/ARGOS.md). src/argos/app.js lo llena y lo mueve.
 -->
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HERA</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HERA</title>
 </head>
-<body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
+<body data-vista="red">
+<canvas id="gl" aria-hidden="true"></canvas>
+<svg id="guias-svg" aria-hidden="true"><g id="guias"></g></svg>
+
+<main id="capa">
+  <button id="inicio" data-ir="red" aria-label="HERA, volver al abanico"><img src="/src/assets/hera-logo.png" alt="" width="60" height="40"><span>HERA</span></button>
+  <button id="volver" class="vano" data-ir="volver">Volver al abanico <kbd>Esc</kbd></button>
+
+  <section id="diag" aria-label="Diagnóstico de la red">
+    <h1></h1>
+    <div id="cifras" role="group" aria-label="Filtrar por estado"></div>
+    <p class="pie"></p>
+  </section>
+
+  <section id="urgente" aria-label="Lo más urgente">
+    <h2>Lo que Argos vio</h2>
+    <ul id="urgente-lista"></ul>
+    <button id="ver-plan" class="vano" data-ir="plan"></button>
+  </section>
+
+  <section id="buscar">
+    <label for="q">Busca un equipo</label>
+    <div class="campo"><input id="q" type="search" placeholder="Nombre, IP, puerto o CVE" autocomplete="off" spellcheck="false"><kbd>/</kbd></div>
+    <p id="qn" aria-live="polite"></p>
+  </section>
+
+  <nav id="lanza" aria-label="Escanear">
+    <button class="vano lleno" data-ir="lanzar" data-carta="0">Mapear</button>
+    <button class="vano" data-ir="lanzar" data-carta="6">Detectar</button>
+    <button class="vano" disabled>Vulnerar <small>pronto</small></button>
+  </nav>
+
+  <div id="grupos" aria-hidden="true"></div>
+  <div id="ojos" role="group" aria-label="Equipos de la red. Usa las flechas para recorrerlos."></div>
+
+  <section id="plan" aria-label="Plan">
+    <h2 tabindex="-1">Qué hacer ahora</h2>
+    <p class="sub">Lo que Argos vio, por urgencia. Pasa por una acción y se encienden sus plumas.</p>
+    <div id="plan-lista"></div>
+    <p class="pie">Plan preliminar, hecho con reglas. Aquí escribirá la síntesis con IA.</p>
+  </section>
+
+  <section id="ficha" aria-label="Equipo">
+    <div id="ficha-cuerpo"></div>
+    <div id="otros"><button class="vano" data-ir="otro" data-paso="-1">Pluma anterior</button><button class="vano" data-ir="otro" data-paso="1">Pluma siguiente</button></div>
+  </section>
+
+  <section id="lanzar" aria-label="Lanzar un escaneo">
+    <div id="lz-fondo" aria-hidden="true"></div>
+    <header><h2 id="lz-grupo">Mapear</h2><p class="sub" id="lz-sub"></p></header>
+    <ul id="cartas"></ul>
+    <button id="lz-otra" class="vano"><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M7 3l7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span></span></button>
+    <p class="pie" id="lz-pie"></p>
+  </section>
+
+  <section id="escaneo" aria-label="Escaneo en curso">
+    <h1 id="esc-titulo">Mapeando</h1>
+    <p id="esc-reloj" class="mono">00:00</p>
+    <p id="esc-antes"></p>
+    <p id="esc-fase"></p>
+    <button id="cancelar" class="vano lleno">Cancelar escaneo</button>
+  </section>
+
+  <section id="vacio" aria-label="Primer arranque">
+    <h1 tabindex="-1">Argos aún no ha mirado tu red</h1>
+    <p>Mapea la red y el abanico se despliega: una pluma por equipo, un ojo que se abre si algo anda mal.</p>
+    <div><button class="vano lleno" data-ir="rapido">Mapear la red</button><button class="vano" data-ir="lanzar">Elegir otro escaneo</button></div>
+  </section>
+
+  <p id="aviso" role="status"></p>
+  <p id="vivo" class="oculto" aria-live="polite"></p>
+</main>
+
+<script type="module" src="/src/main.ts"></script>
 </body>
 </html>

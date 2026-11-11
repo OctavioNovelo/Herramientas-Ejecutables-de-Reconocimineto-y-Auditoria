@@ -62,6 +62,13 @@ const REGLAS_PUERTO: ReglaPuerto[] = [
     pasos: ["Permite el acceso solo desde la IP de tu equipo de gestión.", "Bloquéalos desde la WAN en el firewall."],
   },
   {
+    puertos: [3306, 1433],
+    prioridad: "alerta",
+    titulo: (n) => (n > 1 ? `Cierra la base de datos expuesta en ${n} dispositivos` : "Cierra la base de datos expuesta"),
+    motivo: "MySQL o SQL Server aceptan conexiones desde la red: con una contraseña débil, cualquiera en la LAN puede leer o borrar los datos.",
+    pasos: ["Si la base solo la usa ese mismo equipo, haz que escuche en localhost.", "Si otros equipos la necesitan, permite el puerto solo desde sus IP.", "Revisa que ninguna cuenta tenga contraseña vacía o por defecto."],
+  },
+  {
     puertos: [1900],
     prioridad: "info",
     titulo: () => "Comprueba si necesitas UPnP",
@@ -73,21 +80,36 @@ const REGLAS_PUERTO: ReglaPuerto[] = [
 export function generarPlan(devices: Device[]): Plan {
   const acciones: Accion[] = [];
 
-  // 1. Vulnerabilidades confirmadas: una acción por hallazgo, con su remediación.
+  // 1. Vulnerabilidades confirmadas: una acción por hallazgo, con su remediación. El mismo
+  // hallazgo en varios equipos es una sola acción, con la prioridad más alta que se haya visto.
+  const porHallazgo = new Map<string, Accion>();
   for (const dev of devices) {
     for (const v of dev.vulnerabilities) {
       const prioridad: Prioridad =
         v.severity === "critical" || v.severity === "high" ? "riesgo" : v.severity === "medium" ? "alerta" : "info";
+      const host = { ip: dev.ip, nombre: dev.device, puerto: v.port };
+      const previa = porHallazgo.get(v.id);
+      if (previa) {
+        previa.hosts.push(host);
+        if (ORDEN[prioridad] < ORDEN[previa.prioridad]) previa.prioridad = prioridad;
+        continue;
+      }
       const cves = v.cve_count ? ` (${v.cve_count} CVE)` : "";
-      acciones.push({
-        id: `vuln-${dev.ip}-${v.id}`,
+      const accion: Accion = {
+        id: `vuln-${v.id}`,
         prioridad,
-        titulo: `Corrige ${v.id}${cves} en ${dev.device || dev.ip}`,
+        titulo: `Corrige ${v.id}${cves}`,
         motivo: v.output,
         pasos: v.remediation ? [v.remediation] : ["Busca una actualización del fabricante para este servicio."],
-        hosts: [{ ip: dev.ip, nombre: dev.device, puerto: v.port }],
-      });
+        hosts: [host],
+      };
+      porHallazgo.set(v.id, accion);
+      acciones.push(accion);
     }
+  }
+  for (const a of porHallazgo.values()) {
+    const n = new Set(a.hosts.map((h) => h.ip)).size;
+    a.titulo += n > 1 ? ` en ${n} dispositivos` : ` en ${a.hosts[0].nombre || a.hosts[0].ip}`;
   }
 
   // 2. Puertos expuestos: una acción por regla, agrupando todos los hosts afectados.

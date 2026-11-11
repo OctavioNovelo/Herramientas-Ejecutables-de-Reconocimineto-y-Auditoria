@@ -42,10 +42,6 @@ class ScanStateManager {
 
   private subscribers: Set<Subscriber> = new Set();
 
-  constructor() {
-    this.refreshData();
-  }
-
   subscribe(callback: Subscriber): () => void {
     this.subscribers.add(callback);
     callback(this.state);
