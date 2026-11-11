@@ -161,6 +161,7 @@ export function montar(H, puente) {
     S.vista = vista; S.hover = -1; S.accion = null; S.parte = null;
     if (vista !== "plan") S.fija = null;
     document.body.dataset.vista = vista;
+    if (vista === "lanzar") setTimeout(medirPlano, 1500);
     const h = "#" + vista + (vista === "equipo" ? "=" + E[S.sel].ip : "");
     if (location.hash !== h && !opc.sinHash) history.replaceState(null, "", h);
     if (vista === "equipo") ficha();
@@ -219,13 +220,16 @@ export function montar(H, puente) {
     const k = (sitio[cual] = alFrente()), gr = CARTAS[k][0];
     cartas.forEach((c, j) => {
       const en = j >= r.de && j < r.hasta, d = en ? Math.min(4, Math.abs(j - k)) : 9;
-      c.style.setProperty("--k", j - giro); c.style.setProperty("--dx", en ? "0px" : j < r.de ? "-70vw" : "70vw");   // la otra rueda espera fuera, de su lado
+      c.style.setProperty("--k", j - giro); c.style.setProperty("--s", (1500 / (1500 + rueda.offsetWidth * 2.2 * (1 - Math.cos((j - giro) * 0.4538)))).toFixed(3)); c.style.setProperty("--dx", en ? "0px" : j < r.de ? "-70vw" : "70vw");   // la otra rueda espera fuera, de su lado
       c.dataset.d = d; c.classList.toggle("fuera", !en); $$("button, input", c).forEach((el) => (el.tabIndex = d ? -1 : 0));
     });
     ecos.forEach((e, j) => e.classList.toggle("ve", j === k));
     $("#lz-grupo").textContent = gr; $("#lz-sub").textContent = SUBS[gr]; $("#lz-pie").textContent = `${k - r.de + 1} de ${r.hasta - r.de}. Gira con las flechas, la rueda o arrastrando.`;
     if (foco) { const el = $("button:not(:disabled)", cartas[k]); el && el.focus({ preventScroll: true }); }
   }
+  // Sin composición acelerada (WebKitGTK, tal como arranca la app en Linux) el 3D de CSS se aplana: se nota en que
+  // la carta de lado mide de alto lo mismo que la de enfrente. Entonces la profundidad se imita con escala (.plano en argos.css).
+  function medirPlano() { const a = $('.carta[data-d="0"]'), b = $('.carta[data-d="1"]'); if (S.vista === "lanzar" && a && b) $("#lanzar").classList.toggle("plano", Math.abs(a.getBoundingClientRect().height - b.getBoundingClientRect().height) < 1); }
   function cambiar(a, k, foco) {
     cual = a; const b = $("#lz-otra"), otra = RUEDAS[1 - a].n;
     b.dataset.lado = a ? "izq" : "der"; b.setAttribute("aria-label", "Ir a " + otra); b.lastChild.textContent = otra;

@@ -55,7 +55,8 @@ Picar un ojo: las demás plumas se pliegan en haz y se apagan; la elegida se tie
 - Las cartas se regeneran con `python3 herramientas/tramar.py` desde `frontend/imagenes_claude/Cards` (esas fotos no están en el repositorio: falta confirmar su licencia).
 
 ## Pendiente antes de pasar a main
-- Probar en la ventana de Tauri en los tres sistemas (WebKitGTK, WebView2, WKWebView). En Linux la app arranca con `WEBKIT_DISABLE_COMPOSITING_MODE=1`, que puede aplanar la rueda de cartas (`preserve-3d`).
+- Linux (WebKitGTK, probado el 2026-11-10 con `npm run tauri:demogrande`): el abanico WebGL se dibuja bien. La app arranca con `WEBKIT_DISABLE_COMPOSITING_MODE=1` y eso aplana la rueda de cartas (sin perspectiva). Hay un respaldo que lo detecta e imita la profundidad con escala, pero no se ha visto en pantalla. Falta decidir si se puede quitar esa variable (probar `WEBKIT_DISABLE_COMPOSITING_MODE=0 npm run tauri:demogrande`) y medir los cuadros por segundo.
+- Windows (WebView2) y macOS (WKWebView): sin probar. La ventana nativa mide como mínimo 1024x680 y el diseño está afinado desde 1257x662.
 - Funciones del frontend anterior que Argos aún no ofrece: objetivo (IP o rango) en los escaneos que no son Personalizado, evasión de firewall en Dispositivos ocultos, Full pack y Personalizado, y los parámetros de Personalizado (protocolo, tipo TCP, ritmo, puertos). Hoy Personalizado usa TCP SYN, T4 y los 1000 puertos más comunes.
 - Los resultados por categoría (lo que encontró solo el último escaneo de un tipo) ya no tienen pantalla propia: todo se lee en el abanico combinado.
 - Más de unos 80 equipos: las tres hileras no alcanzan. Más de unos 300: hay que pasar los valores por textura.

@@ -222,3 +222,5 @@ dt { color: var(--hueso-2); } dd { margin: 0; }
 /* sin WebGL no hay abanico: los ojos se dibujan como aros para que la red siga siendo recorrible */
 .sin-gl .ojo { box-shadow: inset 0 0 0 1.5px var(--hueso-2); }
 .sin-gl .ojo[data-e="alerta"] { box-shadow: inset 0 0 0 2px var(--ambar); } .sin-gl .ojo[data-e="riesgo"] { box-shadow: inset 0 0 0 3px var(--brasa); }
+/* la rueda sin 3D real (ver medirPlano en app.js): las cartas de lado se achican según su fondo */
+#lanzar.plano .carta { scale: var(--s, 1); }
