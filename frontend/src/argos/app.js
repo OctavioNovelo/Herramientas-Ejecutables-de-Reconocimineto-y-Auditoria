@@ -349,7 +349,9 @@ export function montar(H, puente) {
   let puertos = [], S0 = 0.2, DS = 0.05;
   function ficha() {
     const d = E[S.sel], J0 = 10, sds = d.sds.slice(0, gl.NB - J0), n = sds.length;   // shortcut: la pluma tiene 46 barbas-puerto; si un equipo abre más, se dibujan las primeras y el rótulo lo dice
-    S0 = n > 1 ? 0.2 : 0.42; DS = n > 1 ? Math.min(0.085, 0.56 / (n - 1)) : 0; gl.U.uPortS.value.set(S0, DS, J0);
+    // las barbas suben a 0.9 rad: para no cruzar el ocelo, la última nace a más de Re / sin(0.9) del centro del ojo
+    const tramo = Math.max(0.2, gl.EYE_U - (det.Re * 1.28 + 12) / det.len - 0.2);
+    S0 = n > 1 ? 0.2 : 0.42; DS = n > 1 ? Math.min(0.085, tramo / (n - 1)) : 0; gl.U.uPortS.value.set(S0, DS, J0);
     const flag = (s) => { const v = d.vulns.find((v) => +v.port === s.port); return v ? (/critical|high/.test(v.severity) ? 2 : 1) : H.SENSIBLES.has(s.port) ? 1 : 0; };
     puertos = sds.map((s, k) => ({ s, j: J0 + k, u: S0 + k * DS, f: flag(s) }));
     const fam = d.familias, nf = fam.length;
