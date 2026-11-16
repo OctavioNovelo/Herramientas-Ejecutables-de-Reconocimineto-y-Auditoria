@@ -68,7 +68,13 @@ permiten activar fragmentación, señuelos y orden aleatorio de hosts. Va **apag
 defecto**: HERA audita tu propia red, donde esconderse no aporta y vuelve el escaneo más lento
 y menos preciso. Sirve para comprobar si tu propio firewall/IDS detecta un escaneo sigiloso.
 En la interfaz gráfica, al lanzar uno de esos escaneos se abre un diálogo que lo pregunta;
-el de Personalizado pide ahí mismo el objetivo, el protocolo, el tipo TCP, la intensidad y los puertos.
+el de Personalizado pide ahí mismo el protocolo, el tipo TCP, la intensidad y los puertos.
+
+**Objetivo:** en la interfaz gráfica todos los escaneos preguntan "Rango o equipo" antes de
+lanzar (una IP, un rango, un CIDR o un nombre). Si se deja vacío se usa la red local de `hosts.txt`.
+
+**Resultados por escaneo:** sobre el abanico hay pestañas, "Todo" (lo combinado) y una por cada
+escaneo con resultados; también se pueden abrir mientras otro escaneo corre, que sigue en segundo plano.
 
 **Nota de diseño importante:** por defecto, HERA audita la **subred local**, detectada automáticamente vía `ip route` (Linux/macOS) o `ipconfig`
 (Windows) — el objetivo es mapear los dispositivos de tu propia red (routers, IoT,

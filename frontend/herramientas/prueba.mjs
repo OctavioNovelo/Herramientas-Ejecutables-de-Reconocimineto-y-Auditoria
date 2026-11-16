@@ -1,7 +1,7 @@
 // Prueba de interacción por CDP (sin dependencias). Con `npm run dev:demogrande` corriendo: node herramientas/prueba.mjs
 // URL=... cambia la dirección; CAP=... la carpeta de capturas (por defecto, una temporal del sistema).
 import { spawn } from "node:child_process"; import fs from "node:fs"; import os from "node:os"; import path from "node:path";
-const BASE = process.env.URL || "http://localhost:1420/", D = process.env.CAP || fs.mkdtempSync(path.join(os.tmpdir(), "hera-prueba-")), PORT = 9377; fs.mkdirSync(D, { recursive: true });
+const BASE = process.env.URL || "http://127.0.0.1:3001/", D = process.env.CAP || fs.mkdtempSync(path.join(os.tmpdir(), "hera-prueba-")), PORT = 9377; fs.mkdirSync(D, { recursive: true });
 const ch = spawn("chromium", ["--headless=new", "--no-sandbox", ...(process.env.GPU ? ["--use-angle=vulkan", "--enable-gpu", "--ignore-gpu-blocklist"] : ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"]), "--hide-scrollbars", `--remote-debugging-port=${PORT}`, "--user-data-dir=" + (fs.mkdirSync(D + "/.cdp", { recursive: true }), D + "/.cdp"), "about:blank"], { stdio: "ignore" });
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 let ws, id = 0; const pend = new Map(), errs = [], out = {};
@@ -19,6 +19,7 @@ try {
   const centro = (sel, n = 0) => ev(`(() => { const r = [...document.querySelectorAll(${JSON.stringify(sel)})][${n}].getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
   const tecla = async (key, text) => { const p = { key, code: key.length === 1 ? undefined : key, windowsVirtualKeyCode: { Enter: 13, Escape: 27, ArrowRight: 39, ArrowLeft: 37, Tab: 9 }[key] || key.toUpperCase().charCodeAt(0), text: text ?? (key === "Enter" ? "\r" : key.length === 1 ? key : undefined) }; await cdp("Input.dispatchKeyEvent", { type: "keyDown", ...p }); await cdp("Input.dispatchKeyEvent", { type: "keyUp", ...p }); };
   const st = () => ev(`(() => { const S = ARGOS.S; return [document.body.dataset.vista, location.hash, "sel=" + ARGOS.H.equipos[S.sel].nombre, "hover=" + S.hover, "filtro=" + S.filtro, "parte=" + S.parte, "acc=" + (S.accion && S.accion.titulo), "scan=" + !!S.scan, "datos=" + S.datos].join(" | "); })()`);
+  const lanzarCarta = async () => { await clic(...(await centro('.carta[data-d="0"] button'))); await dormir(300); await clic(...(await centro('#pers button[value="si"]'))); };   // la carta abre su diálogo (objetivo, evasión); se acepta tal cual
   const tam = async (w, h) => cdp("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 1, mobile: false });
   await cdp("Runtime.enable"); await cdp("Page.enable"); await tam(1600, 950);
   const abrir = async (h) => { await cdp("Page.navigate", { url: BASE + h }); await dormir(1500); };
@@ -52,11 +53,11 @@ try {
   await ev(`location.hash = "#plan"`); await dormir(1800); out.plan = await st();
   await mover(...(await centro("#plan .accion", 6))); await dormir(900); out.planHover = await st(); out.planRotulos = await ev(`[...document.querySelectorAll(".ojo.ver b")].map(b => b.textContent).join(", ")`); await foto("x-plan-hover");
   await ev(`location.hash = "#lanzar"`); await dormir(1300);
-  await clic(...(await centro('.carta[data-d="0"] button'))); await dormir(5000);
+  await lanzarCarta(); await dormir(5000);
   out.escaneando = await st(); out.cancelar = await ev(`(() => { const b = document.querySelector("#cancelar"), r = b.getBoundingClientRect(); return b.textContent + " visible=" + (getComputedStyle(b.closest("section")).opacity === "1" && r.width > 0) + " reloj=" + document.querySelector("#esc-reloj").textContent + " titulo=" + document.querySelector("#esc-titulo").textContent; })()`); await foto("x-escaneo-vivo");
   await clic(...(await centro("#cancelar"))); await dormir(300); await foto("x-cancelando"); await dormir(2500); out.cancelado = await st(); out.aviso = await ev(`document.querySelector("#aviso").textContent`); await foto("x-cancelado");
   await ev(`location.hash = "#lanzar"`); await dormir(1600);
-  await clic(...(await centro('.carta[data-d="0"] button'))); await dormir(9000 + 3600); await foto("x-escaneo-ojos"); await dormir(3200); out.fin = await st(); out.vivo = await ev(`document.querySelector("#vivo").textContent`); await foto("x-fin");
+  await lanzarCarta(); await dormir(9000 + 3600); await foto("x-escaneo-ojos"); await dormir(3200); out.fin = await st(); out.vivo = await ev(`document.querySelector("#vivo").textContent`); await foto("x-fin");
 
   // ventana chica (1257x662): nada se pisa, el nombre sale solo con el cursor encima, y la rueda de cartas gira con rueda y arrastre sin lanzar nada
   const pisan = (a, b) => ev(`(() => { const vis = (s) => [...document.querySelectorAll(s)].filter((e) => { let o = 1; for (let n = e; n && n.nodeType === 1; n = n.parentElement) o *= +getComputedStyle(n).opacity; return getComputedStyle(e).visibility !== "hidden" && o > 0.05; }).map((e) => [e, e.getBoundingClientRect()]);
@@ -74,6 +75,6 @@ try {
   await clic(...(await centro("#volver"))); await dormir(1600); out.chica.volverConClic = await ev("document.body.dataset.vista");
   await ev(`location.hash = "#plan"`); await dormir(1500); await clic(...(await centro("#volver"))); await dormir(1300); out.chica.volverDesdePlan = await ev("document.body.dataset.vista");
   await clic(...(await centro(".ojo"))); await dormir(1500); await clic(...(await centro("#volver"))); await dormir(1300); out.chica.volverDesdeFicha = await ev("document.body.dataset.vista");
-  await clic(...(await centro('#lanza [data-carta="0"]'))); await dormir(2400); await clic(...(await centro('.carta[data-d="0"] button'))); await dormir(4500);
+  await clic(...(await centro('#lanza [data-carta="0"]'))); await dormir(2400); await lanzarCarta(); await dormir(4500);
   out.chica.pisanEscaneo = await pisan(".grupo.ver", "#escaneo, #cancelar, .grupo.ver"); await clic(...(await centro("#cancelar"))); await dormir(1500);
 } catch (e) { out.FALLO = String(e).slice(0, 400); } finally { out.errs = errs; console.log(JSON.stringify(out, null, 1)); try { ws && ws.close(); } catch {} ch.kill("SIGKILL"); }
