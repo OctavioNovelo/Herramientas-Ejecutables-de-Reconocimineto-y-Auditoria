@@ -6,6 +6,8 @@ import os
 import re
 from pathlib import Path
 
+from utils import npcap
+
 # Herramientas que orquesta HERA y el módulo de tools/ que las implementa. Cada módulo declara
 # BINARIOS = {carpeta_os: nombre_del_binario}, con None si la herramienta no existe en ese SO.
 # Los binarios viven en tools/tools_bin/<carpeta_os>/<Herramienta>/<binario>.
@@ -48,6 +50,7 @@ def ejecutar_herramienta(tool, os_folder):
 
     redes = []
     if os_name == "Windows":
+        npcap.asegurar()  # sin Npcap, nmap.exe no puede enviar paquetes crudos
         # Execute ipconfig
         ip_result = subprocess.run("ipconfig", shell=True, capture_output=True, text=True)
         

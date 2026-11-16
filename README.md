@@ -179,6 +179,10 @@ de SO, etc.). `utils/elevation.py` centraliza esto para los tres sistemas operat
 - **Windows**: la aplicación debe declararse como "requiere Administrador" a nivel de
   manifest del instalador (NSIS) — Windows pide UAC una sola vez al abrir la app, no en
   cada escaneo.
+  Además, el `nmap.exe` incluido necesita **Npcap** para enviar paquetes crudos. Si no está
+  (un Windows donde nunca se instaló Nmap), HERA descarga el instalador oficial de npcap.com,
+  verifica su SHA-256 y lo abre antes del primer escaneo; hay que completar el asistente a mano
+  porque la edición gratuita no admite instalación silenciosa (`utils/npcap.py`).
 
 Nunca se hardcodea `sudo` en `tools/nmap.py` directamente — todo pasa por
 `elevation.ejecutar_elevado()`.
