@@ -16,7 +16,10 @@ const esqueleto = capa.innerHTML; // la vista escribe dentro; al remontar se par
 const plano = heraApi.sinComposicion().catch(() => false);
 let vista: Vista | null = null;
 let categorias: Record<string, CategoryResult | undefined> = {};
-let escaneo: { grupo: string; nombre: string; t0: number; cancelado: boolean } | null = null;
+let faltan: Record<string, string> = {};
+let pestana: string | null = null; // resultados de un solo escaneo (id de categoría); null es Todo
+let nueva: string | null = null; // el escaneo que acaba de terminar, hasta que se abre su pestaña
+let escaneo: { id: string; grupo: string; nombre: string; t0: number; cancelado: boolean } | null = null;
 
 async function leerCategorias() {
   const r = await Promise.all(SCAN_CATEGORIES.map((c) => heraApi.getCategoryResults(c.file_base).catch(() => undefined)));
@@ -32,16 +35,18 @@ async function herramientasQueFaltan() {
   return faltan;
 }
 
-async function remontar(st: AppState) {
-  const [, faltan] = await Promise.all([leerCategorias(), herramientasQueFaltan()]);
+// leer = false: solo cambió la pestaña, los datos son los mismos
+async function remontar(st: AppState, leer = true) {
+  if (leer) [, faltan] = await Promise.all([leerCategorias(), herramientasQueFaltan()]);
   vista?.destruir();
   capa.innerHTML = esqueleto;
   const viejo = document.querySelector("#gl")!, lienzo = viejo.cloneNode() as HTMLCanvasElement; // un lienzo nuevo: el contexto WebGL anterior se soltó
   viejo.replaceWith(lienzo);
-  vista = montar({ ...armar({ devices: st.devices, stats: st.stats, hostInfo: st.hostInfo, categorias, faltan }), plano: await plano }, {
+  vista = montar({ ...armar({ devices: st.devices, stats: st.stats, hostInfo: st.hostInfo, categorias, faltan, pestana, nueva }), plano: await plano }, {
     lanzar(cat, objetivo, opciones) {
+      if (escaneo) return vista!.avisar("Ya hay un escaneo en curso.");
       const previo = categorias[cat.id]?.scan_time;
-      escaneo = { grupo: cat.group === "detectar" ? "Detectar" : "Mapear", nombre: cat.label, t0: performance.now(), cancelado: false };
+      escaneo = { id: cat.id, grupo: cat.group === "detectar" ? "Detectar" : "Mapear", nombre: cat.label, t0: performance.now(), cancelado: false };
       vista!.escaneando({ ...escaneo, previo: previo?.segundos ?? 0, previoTxt: previo?.duracion_str ?? "" });
       if (cat.id === "custom") scanState.startCustomScan({ protocol: "tcp", tcpType: "syn", timing: 4, portMode: "top", portValue: "1000", ...opciones, target: objetivo });
       else scanState.startScan(cat.id, objetivo, opciones?.evasion ?? false, cat.label);
@@ -51,6 +56,14 @@ async function remontar(st: AppState) {
       scanState.cancelScan();
     },
     instalar: (herramienta) => heraApi.installTool(herramienta),
+    pestana(id) {
+      pestana = id || null;
+      if (id === nueva) nueva = null;
+      remontar(scanState.getState(), false).then(() => {
+        if (escaneo) vista!.enCurso(escaneo); // se eligió durante un escaneo: sigue en segundo plano
+        document.querySelector<HTMLElement>('#pestanas .pest[aria-pressed="true"]')?.focus();
+      });
+    },
   });
 }
 
@@ -63,6 +76,7 @@ function alCambiar(st: AppState) {
   escaneo = null;
   if (st.error) return vista?.terminado(st.error);
   if (!e || e.cancelado) return vista?.terminado();
+  pestana = null; nueva = e.id;   // se vuelve a Todo; la pestaña del escaneo queda marcada
   remontar(st).then(() => {
     if (st.devices.length) vista!.revelar({ grupo: e.grupo, nombre: e.nombre, ms: performance.now() - e.t0 });
     else vista!.avisar("El escaneo terminó sin encontrar equipos.", 8000);

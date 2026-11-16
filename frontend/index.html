@@ -22,6 +22,8 @@ El esqueleto de la interfaz de HERA (dirección visual Argos, ver docs/ui/ARGOS.
     <p class="pie"></p>
   </section>
 
+  <nav id="pestanas" aria-label="Ver los resultados de un solo escaneo"></nav>
+
   <section id="urgente" aria-label="Lo más urgente">
     <h2>Lo que Argos vio</h2>
     <ul id="urgente-lista"></ul>
@@ -64,8 +66,9 @@ El esqueleto de la interfaz de HERA (dirección visual Argos, ver docs/ui/ARGOS.
     <dialog id="pers" aria-labelledby="pers-t">
       <form method="dialog">
         <h2 id="pers-t">Personalizado</h2>
+        <label for="rg">Rango o equipo</label><div class="campo"><input id="rg" spellcheck="false" autocomplete="off" aria-describedby="rg-sub"></div>
+        <p class="sub" id="rg-sub"></p>
         <fieldset id="p-pers">
-        <label for="rg">Rango o equipo</label><div class="campo"><input id="rg" spellcheck="false" autocomplete="off"></div>
         <div class="par">
           <div><label for="p-proto">Protocolo</label><select id="p-proto"><option value="tcp">TCP</option><option value="udp">UDP</option><option value="sctp">SCTP</option></select></div>
           <div><label for="p-tipo">Tipo de escaneo</label><select id="p-tipo"><option value="syn">SYN</option><option value="connect">Connect</option><option value="fin">FIN</option><option value="null">NULL</option><option value="xmas">Xmas</option></select></div>
@@ -74,8 +77,8 @@ El esqueleto de la interfaz de HERA (dirección visual Argos, ver docs/ui/ARGOS.
         </div>
         <div id="p-valor-f"><label for="p-valor" id="p-valor-l"></label><div class="campo"><input id="p-valor" value="1000" required spellcheck="false" autocomplete="off"></div></div>
         </fieldset>
-        <label class="casilla"><input type="checkbox" id="p-evasion">Evadir firewall o IDS</label>
-        <p class="sub">Fragmenta los paquetes, usa señuelos y desordena los equipos. Tarda más.</p>
+        <div id="p-evas"><label class="casilla"><input type="checkbox" id="p-evasion">Evadir firewall o IDS</label>
+        <p class="sub">Fragmenta los paquetes, usa señuelos y desordena los equipos. Tarda más.</p></div>
         <p class="base"><button class="vano" value="no" formnovalidate>Cancelar</button><button class="vano lleno" value="si">Lanzar</button></p>
       </form>
     </dialog>
@@ -87,7 +90,9 @@ El esqueleto de la interfaz de HERA (dirección visual Argos, ver docs/ui/ARGOS.
     <p id="esc-antes"></p>
     <p id="esc-fase"></p>
     <button id="cancelar" class="vano lleno">Cancelar escaneo</button>
+    <div id="esc-pestanas" class="pestanas" role="group" aria-label="Mientras esperas, ver los resultados de otro escaneo"></div>
   </section>
+  <div id="curso" role="status" hidden><b id="curso-t"></b><span id="curso-reloj" class="mono">00:00</span><button id="curso-cancelar" class="vano">Cancelar</button></div>
 
   <section id="vacio" aria-label="Primer arranque">
     <h1 tabindex="-1">Argos aún no ha mirado tu red</h1>

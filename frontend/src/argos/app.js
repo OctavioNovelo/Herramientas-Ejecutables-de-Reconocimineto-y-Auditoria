@@ -117,7 +117,7 @@ export function montar(H, puente) {
   let anchoG = [], estorbos = {};
   function cajas() {     // lo que un rótulo de grupo no debe pisar, y cuánto mide cada rótulo
     anchoG = rotGrupos.map((el) => el.offsetWidth);
-    estorbos = { red: ["#diag", "#urgente", "#buscar", "#lanza"], escaneo: ["#escaneo"] };
+    estorbos = { red: ["#diag", "#urgente", "#buscar", "#lanza", "#pestanas"], escaneo: ["#escaneo"] };
     for (const v in estorbos) estorbos[v] = estorbos[v].map((s) => $(s).getBoundingClientRect());
   }
   function colocar() {
@@ -175,9 +175,12 @@ export function montar(H, puente) {
   // ---- diagnóstico (esquina superior izquierda) ----
   function diagnostico() {
     $("#diag h1").textContent = H.titulo; $("#diag .pie").textContent = H.pie;
+    $("#pestanas").innerHTML = $("#esc-pestanas").innerHTML = H.pestanas.length < 2 ? "" : '<p class="sub">Ver lo que encontró</p>' + H.pestanas.map((p) => `<button class="pest${p.nueva ? " nueva" : ""}" data-p="${p.id}" aria-pressed="${p.activa}">${esc(p.label)}<small>${p.nueva ? "nuevo" : esc(p.cuando)}</small></button>`).join("");
     $("#cifras").innerHTML = ["riesgo", "alerta", "seguro"].map((e) => `<button class="cifra" data-e="${e}" aria-pressed="${S.filtro === e}">${glifo(e)}<b>${H.cuenta(e)}</b> ${ESTADO_TXT[e]}</button>`).join("");
   }
   $("#cifras").addEventListener("click", (ev) => { const b = ev.target.closest(".cifra"); if (!b) return; S.filtro = S.filtro === b.dataset.e ? null : b.dataset.e; diagnostico(); objetivos(); const el = $(`.cifra[data-e="${b.dataset.e}"]`); el && el.focus(); });
+  // en el panel del escaneo la pestaña activa también se puede elegir: saca de la espera y deja el escaneo en segundo plano
+  addEventListener("click", (ev) => { const b = ev.target.closest(".pest"); if (b && (b.getAttribute("aria-pressed") !== "true" || S.scan) && !(S.scan && S.scan.rev)) puente.pestana(b.dataset.p); });
   const campo = $("#q");
   campo.addEventListener("input", () => { S.q = campo.value.trim(); const n = E.filter(coincide).length; $("#qn").textContent = S.q ? (n ? `${n} de ${N}` : "Ninguno coincide") : ""; objetivos(); });
   campo.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { const d = E.find(coincide); if (d && S.q) elegir(d.i); } });
@@ -238,10 +241,10 @@ export function montar(H, puente) {
     girar(k === undefined ? sitio[a] : k, foco);
   }
   $("#lz-otra").addEventListener("click", () => cambiar(1 - cual));
-  const lanzarCarta = (k) => { const [g, , , , cat] = CARTAS[k]; if (g === "Vulnerar") return; if (cat.falta) return instalar(k); const p = cat.id === "custom"; if (!p && !cat.supportsEvasion) return puente.lanzar(cat, ""); catPers = cat; $("#pers-t").textContent = cat.label; $("#p-pers").hidden = $("#p-pers").disabled = !p; $("#p-evasion").checked = false; pers.returnValue = ""; ajustarPers(); pers.showModal(); };
-  // Un diálogo para las cartas con opciones: Personalizado pide todo; las que admiten evasión, solo eso. El backend valida de nuevo (tools/nmap.py).
+  const lanzarCarta = (k) => { const [g, , , , cat] = CARTAS[k]; if (g === "Vulnerar") return; if (cat.falta) return instalar(k); if (S.curso) return avisar("Ya hay un escaneo en curso."); const p = cat.id === "custom"; catPers = cat; $("#pers-t").textContent = cat.label; $("#p-pers").hidden = $("#p-pers").disabled = !p; $("#p-evas").hidden = !cat.supportsEvasion; $("#p-evasion").checked = false; pers.returnValue = ""; ajustarPers(); pers.showModal(); };
+  // Un diálogo para todas las cartas: el objetivo (vacío = la red de hosts.txt), la evasión si la carta la admite y, en Personalizado, lo demás. El backend valida de nuevo (tools/nmap.py).
   const pers = $("#pers"), pv = $("#p-valor"), MODOS = { top: ["Cuántos puertos, los más comunes", "1000", "[1-9]\\d{0,4}"], specific: ["Puertos o rangos, separados por comas", "80,443,8000-8100", "\\d{1,5}(-\\d{1,5})?(\\s*,\\s*\\d{1,5}(-\\d{1,5})?)*"], ratio: ["Frecuencia mínima, de 0 a 1", "0.5", "0?\\.\\d+|[01]"] };
-  let catPers = null; $("#rg").placeholder = H.red;
+  let catPers = null; $("#rg").placeholder = H.red || "toda la red"; $("#rg-sub").textContent = `Una IP, un rango o un nombre. Vacío: toda tu red${H.red ? " (" + H.red + ")" : ""}.`;
   function ajustarPers(ev) {
     $("#p-tipo").disabled = $("#p-proto").value !== "tcp";
     const m = MODOS[$("#p-modo").value]; pv.disabled = !m; $("#p-valor-f").hidden = !m; if (!m) return;
@@ -252,7 +255,7 @@ export function montar(H, puente) {
   pers.addEventListener("close", () => {
     if (pers.returnValue !== "si") return;
     const tcp = $("#p-proto").value === "tcp", evasion = $("#p-evasion").checked;
-    if (catPers.id !== "custom") return puente.lanzar(catPers, "", { evasion });
+    if (catPers.id !== "custom") return puente.lanzar(catPers, $("#rg").value, { evasion });
     puente.lanzar(catPers, $("#rg").value, { protocol: $("#p-proto").value, tcpType: tcp ? $("#p-tipo").value : undefined, timing: +$("#p-ritmo").value, portMode: $("#p-modo").value, portValue: pv.disabled ? "" : pv.value.trim(), evasion });
   });
   async function instalar(k) {   // la herramienta que falta se descarga solo cuando la persona pulsa "Instalar"
@@ -295,6 +298,9 @@ export function montar(H, puente) {
     cajas();   // el panel del escaneo cambió de alto con su texto
     setTimeout(() => { if (S.scan) est.fill(0); }, 500);
   }
+  // El escaneo sigue mientras se miran otros resultados: la vista es la normal y una ficha abajo lleva el reloj y Cancelar.
+  function enCurso(o) { S.curso = { t0: o.t0, s: -1 }; $("#curso-t").textContent = (o.grupo === "Detectar" ? "Detectando" : "Mapeando") + ": " + o.nombre.toLowerCase(); $("#curso").hidden = false; }
+  $("#curso-cancelar").addEventListener("click", () => { $("#curso-cancelar").disabled = true; puente.cancelar(); });
   function revelar(o) {        // o: grupo, nombre, ms (lo que tardó). Las plumas se alzan por grupo, se abren los ojos y queda el abanico.
     alzada.fill(0); est.fill(0);
     S.scan = { t0: ahora, grupo: o.grupo, rev: true, fase: 0, ojos: false };
@@ -305,6 +311,7 @@ export function montar(H, puente) {
     cajas();
   }
   function latido() {
+    if (S.curso) { const s = Math.floor((ahora - S.curso.t0) / 1000); if (s !== S.curso.s) { S.curso.s = s; $("#curso-reloj").textContent = reloj(s * 1000); } }
     const sc = S.scan; if (!sc) return;
     const t = ahora - sc.t0;
     if (!sc.rev) {
@@ -330,6 +337,7 @@ export function montar(H, puente) {
   }
   $("#cancelar").addEventListener("click", () => { if (!S.scan || S.scan.rev) return; document.body.dataset.cancel = "1"; $("#esc-fase").textContent = "Cancelando."; puente.cancelar(); });
   function terminado(error) {  // cancelado o fallido: se repliega y vuelve a lo que había
+    if (S.curso) { S.curso = null; $("#curso").hidden = true; $("#curso-cancelar").disabled = false; return avisar(error || "Escaneo cancelado. Conservas el resultado anterior.", error ? 12000 : 4200); }
     const sc = S.scan; if (!sc) return;
     alzada.fill(0); objetivos();
     S.scan = null; document.body.dataset.cancel = "1";
@@ -430,7 +438,7 @@ export function montar(H, puente) {
     const b = ev.target.closest("[data-ir]"); if (!b || b.disabled) return;
     if (b.dataset.ir === "volver") return ir(S.vista === "equipo" ? S.antes : "red");
     if (b.dataset.ir === "otro") { S.sel = (S.sel + +b.dataset.paso + N) % N; return ir("equipo"); }
-    if (b.dataset.ir === "rapido") return puente.lanzar(H.ESCANEOS.mapear[0][3], "");
+    if (b.dataset.ir === "rapido") return S.curso ? avisar("Ya hay un escaneo en curso.") : puente.lanzar(H.ESCANEOS.mapear[0][3], "");
     if (b.dataset.carta) cambiar(+b.dataset.carta ? 1 : 0, +b.dataset.carta);
     ir(b.dataset.ir);
   });
@@ -480,5 +488,5 @@ export function montar(H, puente) {
   document.fonts && document.fonts.ready.then(() => { cajas(); quieto = false; });
   window.ARGOS = { S, H, ir, elegir };   // para herramientas/prueba.mjs
   let rafId = requestAnimationFrame(cuadro);
-  return { escaneando, revelar, terminado, avisar, destruir() { corte.abort(); cancelAnimationFrame(rafId); clearTimeout(tAviso); gl.destruir(); } };
+  return { escaneando, enCurso, revelar, terminado, avisar, destruir() { corte.abort(); cancelAnimationFrame(rafId); clearTimeout(tAviso); gl.destruir(); } };
 }

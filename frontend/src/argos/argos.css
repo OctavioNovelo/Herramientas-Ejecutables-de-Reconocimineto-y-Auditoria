@@ -34,7 +34,7 @@ h2 { font-size: 26px; line-height: 1.15; }
 
 /* cada sección vive solo en su vista; entra y sale sin saltar */
 section, nav, #volver, #grupos { position: absolute; opacity: 0; visibility: hidden; transition: opacity .28s var(--sale), visibility 0s .28s; }
-[data-vista="red"] :is(#diag, #urgente, #buscar, #lanza, #grupos),
+[data-vista="red"] :is(#diag, #urgente, #buscar, #lanza, #grupos, #pestanas),
 [data-vista="plan"] :is(#plan, #volver), [data-vista="equipo"] :is(#ficha, #volver), [data-vista="lanzar"] :is(#lanzar, #volver),
 [data-vista="escaneo"] :is(#escaneo, #grupos), [data-vista="vacio"] #vacio { opacity: 1; visibility: visible; transition: opacity .5s var(--sale) .18s, visibility 0s; }
 [data-cancel] #escaneo { opacity: .35; }
@@ -67,8 +67,23 @@ label { display: block; font: italic 14px var(--serif); color: var(--hueso-2); }
 #cifras { display: grid; gap: 2px; margin: 14px 0 10px -8px; }
 .cifra { display: flex; align-items: center; gap: 9px; padding: 5px 10px 5px 8px; border-radius: 3px 14px; min-height: 34px; color: var(--hueso); transition: background-color .15s; }
 .cifra b { font: 600 20px var(--mono); min-width: 28px; text-align: right; }
-.cifra:hover { background: rgba(236,229,210,.07); }
-.cifra[aria-pressed="true"] { background: rgba(236,229,210,.12); box-shadow: inset 0 0 0 1px var(--hilo); }
+.cifra:hover, .pest:hover { background: rgba(236,229,210,.07); }
+:is(.cifra, .pest)[aria-pressed="true"] { background: rgba(236,229,210,.12); box-shadow: inset 0 0 0 1px var(--hilo); }
+/* pestañas: Todo y cada escaneo con resultados; elegir una arma el abanico solo con ese escaneo */
+.pestanas { display: grid; gap: 1px; margin: 16px 0 0 -8px; }
+.pestanas .sub { margin: 0 0 4px 8px; font: italic 14px var(--serif); }
+#esc-pestanas { width: 258px; margin-top: 22px; }
+/* sobre el abanico van en fila, arriba y sin la hora (la dice el pie del diagnóstico): en columna tapaban ojos */
+#pestanas { left: 300px; right: 330px; top: 20px; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 4px; }
+#pestanas .sub, #pestanas .pest:not(.nueva) small { display: none; }
+#pestanas .pest { background: rgba(7,13,26,.6); }
+/* escaneo en segundo plano: se ve en todas las vistas */
+#curso { position: absolute; left: 50%; bottom: 22px; translate: -50% 0; z-index: 5; display: flex; align-items: center; gap: 12px; padding: 6px 8px 6px 18px; border-radius: 3px 18px; background: var(--tinta-2); box-shadow: inset 0 0 0 1px var(--hilo), 0 10px 30px -12px #000; white-space: nowrap; }
+#curso[hidden] { display: none; }
+#curso b { font: italic 500 15px var(--serif); } #curso .vano { min-height: 32px; padding: 4px 14px; }
+.pest { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-height: 30px; padding: 4px 10px 4px 8px; border-radius: 3px 14px; font-size: 14px; transition: background-color .15s; }
+.pest small { font: 11.5px var(--mono); color: var(--hueso-2); white-space: nowrap; }
+.pest.nueva small { color: var(--ambar); }
 .cifra .g { width: 22px; height: 22px; }
 
 #urgente { right: 28px; top: 24px; width: 280px; text-align: right; }
@@ -234,6 +249,7 @@ dt { color: var(--hueso-2); } dd { margin: 0; }
 #pers::backdrop { background: rgba(4,9,18,.72); }
 #pers form { display: grid; gap: 4px; }
 #pers h2 { margin-bottom: 10px; }
+#pers #rg-sub { margin-top: 4px; } #pers #p-evas[hidden] { display: none; }
 #pers .par { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; margin: 12px 0; }
 #pers fieldset { display: grid; gap: 4px; min-width: 0; padding: 0; border: 0; } #pers fieldset[hidden] { display: none; }
 /* sin apariencia nativa: WebKitGTK pinta el select con el tema claro de GTK y el texto hueso no se lee */

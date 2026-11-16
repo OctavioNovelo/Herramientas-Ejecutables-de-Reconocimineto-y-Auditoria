@@ -43,6 +43,7 @@ export interface Modelo {
   titulo: string;
   pie: string;
   red: string;
+  pestanas: { id: string; label: string; cuando: string; activa: boolean; nueva: boolean }[];   // "" es Todo; el resto, un escaneo con resultados
   plano?: boolean;   // el webview no pinta CSS 3D: la rueda de cartas usa su respaldo en 2D
 }
 
@@ -97,12 +98,18 @@ export interface Fuentes {
   hostInfo: HostInfo | null;
   categorias: Record<string, CategoryResult | undefined>; // por id de categoría
   faltan: Record<string, string>; // herramienta sin instalar: tamaño de la descarga
+  pestana?: string | null; // id de categoría: el abanico se arma solo con lo que vio ese escaneo
+  nueva?: string | null; // id de la categoría que acaba de terminar
 }
 
-export function armar({ devices, stats, hostInfo, categorias, faltan }: Fuentes): Modelo {
+export function armar({ devices: combinados, stats, hostInfo, categorias, faltan, pestana, nueva }: Fuentes): Modelo {
+  // shortcut: un escaneo que terminó sin equipos no tiene pestaña (se vuelve a Todo); darle una si hace falta decir "no encontró nada".
+  const conDatos = (id: string) => !!categorias[id]?.devices.length;
+  const solo = pestana && conDatos(pestana) ? categorias[pestana]! : null;
+  const devices: Device[] = solo ? solo.devices : combinados;
   // Las vulnerabilidades sin confirmar solo vienen en los resultados por categoría.
   const posibles = new Map<string, PossibleVulnerability[]>();
-  for (const r of Object.values(categorias))
+  for (const r of solo ? [solo] : Object.values(categorias))
     for (const d of r?.devices ?? [])
       for (const v of d.possible_vulnerabilities ?? []) {
         const l = posibles.get(d.ip) ?? [];
@@ -137,6 +144,9 @@ export function armar({ devices, stats, hostInfo, categorias, faltan }: Fuentes)
     return [c.label, DESCRIPCION[id], categorias[id]?.scan_time?.duracion_str ?? "", { ...c, falta: (c.requiresTool && faltan[c.requiresTool]) || null }];
   };
   const cartas = ORDEN_CARTAS.map(carta);
+  const etiqueta = (id: string) => SCAN_CATEGORIES.find((c) => c.id === id)!.label;
+  const pestanas = [{ id: "", label: "Todo", cuando: "", activa: !solo, nueva: false },
+    ...ORDEN_CARTAS.filter(conDatos).map((id) => ({ id, label: etiqueta(id), cuando: fechaCorta(categorias[id]!.scan_time?.fin ?? ""), activa: !!solo && id === pestana, nueva: id === nueva }))];
   const n = equipos.length, ultimo = stats?.last_scan && stats.last_scan !== "N/A" ? ` Último escaneo, ${fechaCorta(stats.last_scan)}.` : "";
 
   return {
@@ -145,8 +155,9 @@ export function armar({ devices, stats, hostInfo, categorias, faltan }: Fuentes)
     ETIQ: ADMIN_PORT_LABELS,
     SENSIBLES: PUERTOS_SENSIBLES,
     ESCANEOS: { mapear: cartas.filter((c) => c[3].group === "mapear"), detectar: cartas.filter((c) => c[3].group === "detectar") },
-    titulo: cuenta("riesgo") ? "Tu red está en riesgo" : cuenta("alerta") ? "Tu red está en alerta" : "Tu red no tiene pendientes",
-    pie: `${n} ${n === 1 ? "equipo" : "equipos"}.${ultimo}`,
+    titulo: solo ? etiqueta(pestana!) : cuenta("riesgo") ? "Tu red está en riesgo" : cuenta("alerta") ? "Tu red está en alerta" : "Tu red no tiene pendientes",
+    pie: `${n} ${n === 1 ? "equipo" : "equipos"}.${solo ? (solo.scan_time?.fin ? ` Terminó el ${fechaCorta(solo.scan_time.fin)}, tardó ${solo.scan_time.duracion_str}.` : "") : ultimo}`,
+    pestanas,
     red: hostInfo?.ip ?? "",
   };
 }
