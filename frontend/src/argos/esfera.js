@@ -225,10 +225,11 @@ function montar() {
 function marcar() {
   if (!gl) return;
   const fx = gl.ojos.geometry.attributes.aFx, lc = gl.hilos.geometry.attributes.color, c = new T.Color();
+  const aten = clamp(20 / Math.max(1, devs.length), 0.25, 1); // muchos equipos: los hilos se aclaran para no saturar los casquetes
   devs.forEach((d, i) => {
-    const res = !visto(d.cap) ? 0 : d === S.sel ? 2 : (S.res.has(d) || d === S.hover) ? 1 : 0, pasa = coincide(d);
+    const res = !visto(d.cap) ? 0 : d === S.sel ? 2 : (S.res.has(d) || d === S.hover || (d.cap === S.hoverCap && d.cap !== S.foco)) ? 1 : 0, pasa = coincide(d);
     fx.array[i * 2] = res; fx.array[i * 2 + 1] = pasa ? 0 : 1;
-    let a = 0.24, b = 0.035;
+    let a = 0.12 * aten, b = 0.012 * aten;
     if (res) { c.set(res === 2 ? COL.hueso : COL[d.e.estado]); a = b = 0.9; }
     else { c.set(COL.bronce); const k = !visto(d.cap) ? 0.06 : !pasa ? 0.15 : S.foco ? (d.cap === S.foco ? 1.5 : 0.3) : 1; a *= k; b *= k; }
     lc.array[i * 6] = c.r * a; lc.array[i * 6 + 1] = c.g * a; lc.array[i * 6 + 2] = c.b * a;
@@ -377,12 +378,15 @@ function superponer() {
   const est = op.estorbos(), tapa = (x, y, bw) => est.some((o) => x + bw > o.left - 4 && x - bw < o.right + 4 && y + 28 > o.top && y - 28 < o.bottom);
   let libre = true; const centro = proy(t2.set(0, 0, 0)), cx = centro.x, cy = centro.y;
   if (pie._x !== Math.round(cx)) { pie._x = Math.round(cx); pie.style.left = pie._x + 'px'; }
-  caps.forEach((c) => {
+  const ocupados = []; // las etiquetas de casquete no se apilan: gana la de más riesgo, las demás se apagan
+  caps.slice().sort((a, b) => EST[b.peor].n - EST[a.peor].n).forEach((c) => {
     // con equipos encendidos dentro: si son pocos llevan nombre y la etiqueta del casquete se quita; si son muchos, baja y deja ver el racimo
     const p = proy(c.c), con = c.rad >= 0 && S.res.size <= 12;
     if (c.rad >= 0 && !con) p.y += (Math.sin(c.rad) + c.tam) * ppu * Math.max(0.5, p.cara) + 30;
     p.x = clamp(p.x, c.bw, W - c.bw);
-    const fuera = p.cara < 0.2 || (c === S.foco && cam.rev > 0.4) || con || !visto(c) || tapa(p.x, p.y, c.bw); // nunca debajo del menú
+    let fuera = p.cara < 0.2 || (c === S.foco && cam.rev > 0.4) || con || !visto(c) || tapa(p.x, p.y, c.bw); // nunca debajo del menú
+    if (!fuera) { const r = { a: p.x - c.bw, b: p.x + c.bw, c: p.y - 26, d: p.y + 26 };
+      if (ocupados.some((o) => r.a < o.b && r.b > o.a && r.c < o.d && r.d > o.c)) fuera = true; else ocupados.push(r); }
     c.boton.classList.toggle('atras', fuera); c.boton.classList.toggle('lejos', !!S.foco); c.boton.classList.toggle('nada', !c.pasan);
     pon(c.boton, p.x, p.y);
     if (!fuera && Math.abs(p.x - cx) < 150 && Math.abs(p.y - (cy + 34)) < 40) libre = false;
@@ -442,7 +446,7 @@ function tocar(ev) {
   // equipos visibles: los del casquete enfocado y los resaltados
   let mejor = null, md = 0;
   const prueba = (d) => { const k = golpe.dot(d.pos); if (k > md && k > Math.cos(d.cap.tam * 1.25) && coincide(d)) { md = k; mejor = d; } };
-  if (cap && cap === S.foco && cam.rev > 0.5) cap.devs.forEach(prueba);
+  if (cap) cap.devs.forEach(prueba); // el casquete bajo el puntero muestra sus ojos y cada uno da su ficha
   S.res.forEach(prueba); if (S.sel) prueba(S.sel);
   return { cap: cap, dev: mejor };
 }
@@ -457,7 +461,7 @@ const distPinza = () => { const p = Array.from(punteros.values()); return Math.h
 function alMover(ev) {
   const p = punteros.get(ev.pointerId);
   if (!p) { // sin botón: solo señalar
-    const t = escan ? {} : tocar(ev), hc = t.dev ? null : (t.cap && t.cap !== S.foco ? t.cap : null);
+    const t = escan ? {} : tocar(ev), hc = t.cap && t.cap !== S.foco ? t.cap : null;
     lienzo.classList.toggle('apunta', !!(t.dev || hc));
     if ((t.dev || null) !== S.hover || hc !== S.hoverCap) { S.hover = t.dev || null; S.hoverCap = hc; marcar(); }
     return;
