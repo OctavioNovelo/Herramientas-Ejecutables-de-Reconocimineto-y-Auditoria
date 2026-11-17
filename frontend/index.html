@@ -13,6 +13,15 @@ El esqueleto de la interfaz de HERA (dirección visual Argos, ver docs/ui/ARGOS.
 <svg id="guias-svg" aria-hidden="true"><g id="guias"></g></svg>
 
 <main id="capa">
+  <!-- La esfera: la otra vista de la red (src/argos/esfera.js). Va primero para quedar debajo del menú. -->
+  <div id="esfera">
+    <canvas id="lienzo" role="img" aria-label="Esfera de la red. Con Tab recorres sus grupos y, dentro de uno, con las flechas sus equipos."></canvas>
+    <div id="etiquetas"></div>
+    <div id="pista" hidden></div>
+    <div id="esf-pie"></div>
+    <div id="sin3d" role="region" aria-label="Casquetes de la red"><b>Este equipo no puede dibujar la esfera</b>Le falta aceleración gráfica (WebGL). Aquí ves la red como lista, por subred o tipo.<div id="sin3d-lista"></div></div>
+  </div>
+
   <button id="inicio" data-ir="red" aria-label="HERA, volver al abanico"><img src="/src/assets/hera-logo.png" alt="" width="60" height="40"><span>HERA</span></button>
   <button id="volver" class="vano" data-ir="volver">Volver al abanico <kbd>Esc</kbd></button>
 
@@ -21,6 +30,18 @@ El esqueleto de la interfaz de HERA (dirección visual Argos, ver docs/ui/ARGOS.
     <div id="cifras" role="group" aria-label="Filtrar por estado"></div>
     <p class="pie"></p>
   </section>
+
+  <div id="lente" role="group" aria-label="Cómo ver la red">
+    <div class="fila">
+      <span class="rot-l" aria-hidden="true">Ver como</span>
+      <span class="par">
+        <button data-lente="abanico" aria-pressed="true" aria-label="Ver como abanico"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M10 17L3 7M10 17L6.5 4.5M10 17V3.5M10 17L13.5 4.5M10 17L17 7"/></svg>Abanico</button>
+        <button data-lente="esfera" aria-pressed="false" aria-label="Ver como esfera"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7.2"/><path d="M10 2.8Q15 10 10 17.2M3.4 12.6Q10 9 16.6 12.6"/></svg>Esfera</button>
+      </span>
+      <kbd title="Tecla V: cambia de vista">V</kbd>
+    </div>
+    <p id="lente-nota"></p>
+  </div>
 
   <nav id="pestanas" aria-label="Ver los resultados de un solo escaneo"></nav>
 
@@ -47,7 +68,7 @@ El esqueleto de la interfaz de HERA (dirección visual Argos, ver docs/ui/ARGOS.
 
   <section id="plan" aria-label="Plan">
     <h2 tabindex="-1">Qué hacer ahora</h2>
-    <p class="sub">Lo que Argos vio, por urgencia. Pasa por una acción y se encienden sus plumas.</p>
+    <p class="sub" id="plan-sub">Lo que Argos vio, por urgencia. Pasa por una acción y se encienden sus plumas.</p>
     <div id="plan-lista"></div>
     <p class="pie">Plan preliminar, hecho con reglas. Aquí escribirá la síntesis con IA.</p>
   </section>

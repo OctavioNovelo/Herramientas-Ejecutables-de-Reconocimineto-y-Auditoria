@@ -104,7 +104,7 @@ export interface Fuentes {
 
 export function armar({ devices: combinados, stats, hostInfo, categorias, faltan, pestana, nueva }: Fuentes): Modelo {
   // shortcut: un escaneo que terminó sin equipos no tiene pestaña (se vuelve a Todo); darle una si hace falta decir "no encontró nada".
-  const conDatos = (id: string) => !!categorias[id]?.devices.length;
+  const conDatos = (id: string) => !!categorias[id]?.devices?.length;   // un XML a medio escribir llega como { error } sin devices
   const solo = pestana && conDatos(pestana) ? categorias[pestana]! : null;
   const devices: Device[] = solo ? solo.devices : combinados;
   // Las vulnerabilidades sin confirmar solo vienen en los resultados por categoría.

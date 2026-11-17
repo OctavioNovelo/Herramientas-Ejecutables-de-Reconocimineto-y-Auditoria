@@ -1,0 +1,78 @@
+/* Lo que la esfera añade al menú de Argos: su lienzo, sus etiquetas y el conmutador de vista.
+   argos.css queda tal cual; aquí no se redefine nada suyo salvo el sitio del aviso. */
+:root { --ok: #5cc7a1; --violeta-claro: #a99bf0; }
+
+/* ---------- conmutador: abanico o esfera ---------- */
+#lente { position: absolute; left: 50%; top: 18px; translate: -50% 0; z-index: 5; display: grid; justify-items: center; gap: 5px; opacity: 0; visibility: hidden; transition: opacity .28s var(--sale), visibility 0s .28s; }
+[data-vista="red"] #lente, [data-vista="plan"] #lente { opacity: 1; visibility: visible; transition: opacity .5s var(--sale) .18s, visibility 0s; }
+[data-vista="plan"] #lente { left: 24px; top: auto; bottom: 26px; translate: none; justify-items: start; }   /* el plan ocupa la derecha: el conmutador baja a la esquina libre */
+#lente .fila { display: flex; align-items: center; gap: 10px; padding: 3px 12px 3px 14px; border-radius: 3px 18px; background: rgba(7,13,26,.78); box-shadow: inset 0 0 0 1px var(--hilo); }
+#lente .rot-l { font: italic 14px/1 var(--serif); translate: 0 -1px; color: var(--hueso-2); white-space: nowrap; }
+#lente .par { display: flex; gap: 2px; }
+#lente button { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 4px 13px 4px 10px; border-radius: 2px 12px; color: var(--hueso-2); font-weight: 500; white-space: nowrap; transition: background-color .15s, color .15s, box-shadow .15s; }
+#lente button svg { width: 18px; height: 18px; flex: none; }
+#lente button:hover { color: var(--hueso); background: rgba(236,229,210,.07); }
+#lente button[aria-pressed="true"] { color: var(--hueso); font-weight: 700; background: rgba(236,229,210,.14); box-shadow: inset 0 0 0 1px var(--hueso); }
+#lente-nota { font-size: 12.5px; color: var(--hueso-2); text-align: center; max-width: 44ch; text-shadow: 0 0 6px var(--tinta), 0 0 2px var(--tinta); }
+#lente-nota:empty { display: none; }
+[data-vista="plan"] #lente-nota { display: none; }
+#aviso { top: 84px; }   /* el aviso de Argos baja: arriba al centro ahora está el conmutador */
+
+/* ---------- esfera ---------- */
+#esfera { position: absolute; inset: 0; opacity: 0; visibility: hidden; transition: opacity .3s var(--sale), visibility 0s .3s; }
+[data-lente="esfera"]:is([data-vista="red"], [data-vista="plan"], [data-vista="escaneo"]) #esfera { opacity: 1; visibility: visible; transition: opacity .6s var(--sale) .22s, visibility 0s; }
+[data-lente="esfera"] :is(.ojo, #grupos) { visibility: hidden; pointer-events: none; }   /* las zonas de picado del abanico no estorban a la esfera */
+#lienzo { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#lienzo.agarra { cursor: grabbing; } #lienzo.apunta { cursor: pointer; }
+#lienzo[hidden], #esfera [hidden] { display: none; }
+#etiquetas { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+#etiquetas > * { position: absolute; left: 0; top: 0; will-change: transform; }
+
+/* ojos de las etiquetas: la forma dice el estado, el color lo repite */
+.oj { flex: none; vertical-align: -2px; }
+.oj.riesgo { color: var(--brasa); } .oj.alerta { color: var(--ambar); } .oj.seguro { color: var(--ok); }
+#esf-pie .r { color: var(--brasa); } #esf-pie .a { color: var(--ambar); } #esf-pie .s { color: var(--ok); }
+.prueba { color: var(--violeta-claro); }
+
+.cap-b { pointer-events: auto; text-align: center; padding: 5px 9px; border-radius: 3px; line-height: 1.25; white-space: nowrap; text-shadow: 0 0 6px var(--tinta), 0 0 2px var(--tinta); transition: opacity .2s; }
+.cap-b b { display: block; font: 650 15px/1.25 var(--sans); }
+.cap-b .oj { margin-right: 6px; }
+.cap-b span { font-size: 13px; color: var(--hueso); }
+.cap-b.atras { opacity: 0; pointer-events: none; }
+.cap-b.nada { opacity: .45; }   /* nada dentro coincide con el filtro o la búsqueda */
+.cap-b.atras:focus-visible { opacity: 1; }
+.cap-b.lejos b { font-size: 13.5px; color: var(--hueso-2); }
+.cap-b:hover b { text-decoration: underline; text-decoration-color: var(--bronce); text-underline-offset: 3px; }
+.nucleo-b { pointer-events: auto; font-size: 12.5px; color: var(--hueso); white-space: nowrap; text-shadow: 0 0 6px var(--tinta), 0 0 2px var(--tinta); padding: 2px 6px; }
+.nucleo-b .oj { margin-right: 4px; }
+
+.eq { padding: 1px 4px; background: rgba(7,13,26,.5); border-radius: 2px; font-size: 12px; line-height: 1.2; text-align: center; white-space: nowrap; text-shadow: 0 0 5px var(--tinta), 0 0 2px var(--tinta), 0 0 2px var(--tinta); }
+.eq b { display: block; font-weight: 600; max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+.eq i { font: normal 11.5px var(--mono); color: var(--hueso-2); }
+
+#pista { position: absolute; left: 0; top: 0; pointer-events: none; background: var(--tinta); box-shadow: inset 0 0 0 1px var(--hilo); border-radius: 2px 10px; padding: 6px 12px; font-size: 13px; white-space: nowrap; z-index: 3; }
+#pista b { display: block; font-weight: 650; }
+#pista span { color: var(--hueso-2); font-size: 12.5px; }
+
+/* al pie de la esfera: cómo se mueve o, dentro de un casquete, dónde estás */
+#esf-pie { position: absolute; left: 50%; bottom: 30px; translate: -50% 0; display: flex; align-items: baseline; gap: 10px; padding: 4px 12px; border-radius: 2px 12px; background: rgba(7,13,26,.8); font-size: 13.5px; color: var(--hueso-2); white-space: nowrap; }
+#esf-pie button { color: var(--hueso); background: linear-gradient(var(--bronce), var(--bronce)) left bottom / 100% 1px no-repeat; }
+#esf-pie strong { font: 500 19px var(--serif); color: var(--hueso); }
+#esfera.escan #esf-pie, [data-vista="plan"] #esf-pie :is(.det, .ayuda) { display: none; }
+[data-vista="plan"] #esf-pie:has(.ayuda) { display: none; }
+
+#sin3d { position: absolute; left: 50%; top: 42%; translate: -50% -50%; width: min(52ch, 86vw); max-height: 70vh; overflow: auto; text-align: left; color: var(--hueso-2); display: none; }
+#sin3d ul { list-style: none; margin: 12px 0 0; padding: 0; }
+#sin3d li button, #sin3d-lista > button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 6px 10px; text-align: left; color: var(--hueso); }
+#sin3d li button:hover, #sin3d li button:focus-visible, #sin3d-lista > button:hover { background: rgba(236,229,210,.1); }
+#sin3d h2 { font: 500 18px var(--serif); margin: 10px 0 0; color: var(--hueso); }
+#sin3d .oj { width: 20px; flex: none; }
+#sin3d b { display: block; font: 500 22px/1.2 var(--serif); color: var(--hueso); margin-bottom: 8px; }
+#sin3d .vano { margin-top: 16px; }
+[data-sin3d] #sin3d { display: block; }
+[data-sin3d] #esf-pie { display: none; }
+
+/* ---------- retoques mínimos al menú ---------- */
+#pestanas { top: 70px; }   /* arriba al centro va el conmutador; las pestañas por escaneo bajan una fila */.mas .hosts em { font-style: normal; font-size: 13px; color: var(--hueso-2); align-self: center; }
+
+@media (max-width: 1400px) { #esf-pie .det { display: none; } #lente .rot-l { display: none; } #lente .fila { padding-left: 4px; } }

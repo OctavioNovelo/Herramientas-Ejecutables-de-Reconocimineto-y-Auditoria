@@ -1,10 +1,27 @@
 // Argos: estado, muelles y rótulos. El dibujo vive en pluma.js; aquí solo se mueven números con masa.
 import { crear } from "./pluma.js";
+import { iniciar as iniciarEsfera } from "./esfera.js";
+
+// EL UMBRAL. Hasta 60 equipos la red abre en abanico; con más, en esfera (propuesta argos-esfera).
+// También es el tope de plumas del abanico: con más de 60 las tres hileras ya no se leen.
+const UMBRAL_ESFERA = 60;
+
+// Las plumas del abanico. Si la red no cabe, van las más urgentes (en el orden de datos.ts) y queda un hueco de más:
+// la pluma invitada, que presta su sitio a la ficha de cualquier equipo que no esté en el abanico.
+function abanico(todos) {
+  if (todos.length <= UMBRAL_ESFERA) return [todos, -1];
+  const PESO = { riesgo: 0, alerta: 1, seguro: 2 };
+  const dentro = new Set(todos.map((d, k) => [d, k]).sort((a, b) => PESO[a[0].estado] - PESO[b[0].estado] || a[1] - b[1]).slice(0, UMBRAL_ESFERA).map((x) => x[0]));
+  const E = todos.filter((d) => dentro.has(d)).concat(todos.find((d) => !dentro.has(d)));
+  todos.forEach((d) => (d.i = -1)); E.forEach((d, i) => (d.i = i));
+  return [E, UMBRAL_ESFERA];
+}
 
 // H: el modelo que arma datos.ts. puente: lo que la vista le pide a la app (lanzar, cancelar, instalar).
 // Devuelve cómo avisarle del escaneo y cómo desmontarla; con datos nuevos se monta otra.
 export function montar(H, puente) {
-  const E = H.equipos, N = E.length, corte = new AbortController();
+  const TODOS = H.equipos, [E, G] = abanico(TODOS), N = E.length, NV = G < 0 ? N : G, corte = new AbortController();   // E: las plumas. G: la invitada (-1 si toda la red cabe). NV: plumas a la vista.
+  const porIp = new Map(TODOS.map((d) => [d.ip, d]));
   const addEventListener = (t, f, o) => window.addEventListener(t, f, { ...(o || {}), signal: corte.signal });   // lo que se cuelga de la ventana muere al desmontar
   const trama = (t) => new URL(`./cartas/${t}.png`, import.meta.url).href;
   const $ = (s, r) => (r || document).querySelector(s), $$ = (s, r) => [...(r || document).querySelectorAll(s)];
@@ -21,14 +38,14 @@ export function montar(H, puente) {
     : '<path d="M3 8.5q7 6 14 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>') + "</svg>";
 
   // ---- estado ----
-  const S = { vista: "red", sel: 0, filtro: null, q: "", accion: null, fija: null, hover: -1, datos: N > 0, scan: null, parte: null, antes: "red" };
+  const S = { vista: "red", lente: "abanico", lenteFija: false, marca: null, sel: 0, filtro: null, q: "", accion: null, fija: null, hover: -1, datos: N > 0, scan: null, parte: null, antes: "red" };
   const est = new Float32Array(N);            // forma del ojo que se dibuja (0 cerrado, 1 alerta, 2 riesgo)
   const alzada = new Uint8Array(N);           // durante el escaneo: plumas ya alzadas
 
   // ---- huecos del abanico: un grupo por tipo, con aire entre grupos ----
-  const grupos = H.TIPOS.map(([k, plural, icono]) => ({ k, plural, icono, ids: E.filter((d) => d.tipo === k).map((d) => d.i) })).filter((g) => g.ids.length);
+  const grupos = H.TIPOS.map(([k, plural, icono]) => ({ k, plural, icono, ids: E.filter((d) => d.tipo === k && d.i !== G).map((d) => d.i) })).filter((g) => g.ids.length);
   const pos = new Float32Array(N), grupoDe = new Uint8Array(N); let total = 0;
-  grupos.forEach((g, gi) => { g.ids.forEach((i) => { pos[i] = total++; grupoDe[i] = gi; }); total += 0.9; }); total -= 1.9;
+  grupos.forEach((g, gi) => { g.ids.forEach((i) => { pos[i] = total++; grupoDe[i] = gi; }); total += 0.9; }); total -= 1.9; if (G >= 0) pos[G] = total / 2;
   const TIER = [1, 0.8, 0.9];
 
   // ---- muelles ----
@@ -60,7 +77,7 @@ export function montar(H, puente) {
   function medidas() {
     W = innerWidth; Hh = innerHeight;
     gl.resize(W, Hh);
-    R = Math.min(W * 0.44, Hh * 0.8); eyeR = R * 0.037; gl.U.uEyeR.value = eyeR;
+    R = Math.min(W * 0.44, Hh * 0.8); eyeR = R * 0.037 * Math.min(1, Math.sqrt(43 / Math.max(1, NV))); gl.U.uEyeR.value = eyeR;   // con más plumas que las 43 de Argos, ojos algo menores
     const len = Math.min(W * 0.66, 1080), Re = Math.min(150, Hh * 0.165, W * 0.095);
     det = { ox: W * 0.07, oy: Hh * 0.45, bajo: Math.max(96, Hh * 0.17), len, Re, ex: W * 0.07 + len * gl.EYE_U, Lp: Math.min(150, Hh * 0.16) };
     gl.U.uPortLen.value = det.Lp;
@@ -68,26 +85,61 @@ export function montar(H, puente) {
   const coincide = (d) => {
     if (S.filtro && d.estado !== S.filtro) return false;
     if (!S.q) return true;
-    const t = [d.nombre, d.ip, d.mac, d.os, d.ports.join(" "), d.sds.map((s) => s.service + " " + (s.product || "")).join(" "), d.vulns.map((v) => v.id + " " + (v.cve_ids || []).join(" ")).join(" ")].join(" ").toLowerCase();
+    const t = d._t || (d._t = [d.nombre, d.ip, d.mac, d.os, d.ports.join(" "), d.sds.map((s) => s.service + " " + (s.product || "")).join(" "), d.vulns.map((v) => v.id + " " + (v.cve_ids || []).join(" ")).join(" ")].join(" ").toLowerCase());   // con cientos de equipos se busca a cada tecla
     return S.q.toLowerCase().split(/\s+/).every((w) => t.includes(w));
   };
   const accionViva = () => S.accion || S.fija;
+
+  // ---- la otra vista: la esfera. Comparte filtro, buscador, plan y ficha; solo cambia el dibujo ----
+  const ESF = iniciarEsfera(H, { coincide, alElegir: (d) => elegir(d), decir: (t) => (vivo.textContent = t), estorbos: () => estorbos[S.vista] || [] });
+  S.lente = TODOS.length > UMBRAL_ESFERA ? "esfera" : "abanico";   // la vista con la que abre: por tamaño de red
+  const enEscena = () => S.vista === "red" || S.vista === "plan" || S.vista === "escaneo";
+  function refEsfera(girar) {    // qué enciende la esfera: la acción del plan bajo el cursor o, si no, los pocos resultados del buscador
+    const a = accionViva(); let r = a ? a.hosts : [];
+    if (!a && (S.q || S.filtro)) { const m = TODOS.filter(coincide); if (m.length <= 90) r = m; }   // si son pocos se ven uno a uno; si son cientos, basta atenuar el resto
+    ESF.resaltar(r, girar);
+  }
+  function encuadrar() {    // la esfera se centra en lo que el menú deja libre
+    if (S.vista === "plan") return ESF.encuadrar(0, W - estorbos.plan[0].left + 24);
+    const m = Math.max(estorbos.red[0].right, W - estorbos.red[1].left) + 14; ESF.encuadrar(m, m);
+  }
+  function rotulos() {      // los pocos textos del menú que nombran la vista
+    const esf = S.lente === "esfera";
+    $("#volver").firstChild.textContent = esf ? "Volver a la esfera " : "Volver al abanico ";
+    $("#inicio").setAttribute("aria-label", "HERA, volver " + (esf ? "a la esfera" : "al abanico"));
+    $("#plan-sub").textContent = "Lo que Argos vio, por urgencia. Pasa por una acción y se encienden sus " + (esf ? "equipos en la esfera." : "plumas.");
+    $$("#lente button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.lente === S.lente));
+    $("#lente-nota").textContent = !esf && G >= 0 ? `Aquí van los ${NV} equipos más urgentes de ${TODOS.length}. La esfera los muestra todos.` : "";
+    document.body.toggleAttribute("data-sin3d", esf && !ESF.ok);
+  }
+  function lente(l) {       // cambia de vista sin perder de vista el equipo que tenías delante
+    if (l === S.lente || S.scan || (S.vista !== "red" && S.vista !== "plan")) return;
+    const foco = document.activeElement.closest(".ojo");
+    const d = l === "esfera" ? S.marca || (foco ? E[+foco.dataset.i] : null) : ESF.elegido;
+    S.lente = l; S.lenteFija = true;
+    if (l === "esfera") ESF.elegir(d);
+    ir(S.vista, { sinFoco: true });
+    S.marca = l === "abanico" && d && d.i >= 0 && d.i < NV ? d : null;
+    if (S.marca) objetivos();
+    vivo.textContent = l === "esfera" ? (ESF.ok ? "Ahora ves la red como esfera." : "Este equipo no puede dibujar la esfera.") : "Ahora ves la red como abanico.";
+  }
   function objetivos(escalonar) {
     cola.length = 0;   // todo se recalcula: lo pendiente ya no vale
     const rad = Math.PI / 180, Rv = Math.min(Hh * 0.8, R * 1.09);
-    const hayFiltro = S.filtro || S.q, acc = accionViva();
+    const hayFiltro = S.filtro || S.q, acc = accionViva(), esf = S.lente === "esfera" && enEscena();   // con la esfera en escena, la cola baja
     for (const d of E) {
       const i = d.i, u = total > 0 ? pos[i] / total : 0.5, tier = TIER[i % 3], st = ESTADO_N[d.estado];
       let o;
       const plegada = (k, br) => [W / 2, Hh + 10, (u - 0.5) * 20 * rad, R * k * (0.86 + 0.14 * tier), br, 0, 0.1, 0, 0, 0];
-      if (S.vista === "red" || S.vista === "plan") {
+      if (esf) o = plegada(0.5, 0.85);
+      else if (S.vista === "red" || S.vista === "plan") {
         const enPlan = S.vista === "plan";
         const a = enPlan ? (5 + 80 * u) * rad : (-70 + 140 * u) * rad;
         const r = enPlan ? Math.min(Hh * 0.86, W * 0.52) : R + (Rv - R) * Math.cos(a) * Math.cos(a);
         let br = st ? 1 : 0.7, gw = 0;
         if (acc) { const en = acc.hosts.includes(d); br = en ? 1.15 : 0.42; gw = en ? 1 : 0; }
         else if (!enPlan && hayFiltro) br = coincide(d) ? 1.1 : 0.16;
-        if (S.hover === i) { br = Math.max(br, 1) + 0.25; gw = 1; }
+        if (S.hover === i || S.marca === d) { br = Math.max(br, 1) + 0.25; gw = 1; }   // marca: el equipo que traías de la esfera
         o = [enPlan ? -20 : W / 2, Hh + (enPlan ? 20 : 10), a, r * tier, br, st ? 1 : 0, 1, 0, (enPlan ? 0.82 : 1) * (S.hover === i ? 1.16 : 1), gw];   // el ojo crece en su sitio: la zona de picado no se mueve
       } else if (S.vista === "equipo") {
         o = i === S.sel ? [det.ox, det.oy, 90 * rad, det.len, 1, st ? 1 : 0, 1, 1, det.Re / eyeR, 0] : plegada(0.42, 0.3);
@@ -97,7 +149,7 @@ export function montar(H, puente) {
       } else if (S.vista === "vacio") { o = plegada(0.46, 0.62); }
       else o = plegada(0.5, 0.85);
       // la cola: primero se cierra y luego cae hacia atrás; al volver, se alza y luego se abre
-      const cae = S.vista === "lanzar" || (S.vista === "equipo" && i !== S.sel) ? 1 : 0;
+      const cae = esf || S.vista === "lanzar" || (S.vista === "equipo" && i !== S.sel) || (i === G && S.vista !== "equipo") ? 1 : 0;   // la invitada solo se alza para su ficha
       if (escalonar && !calma) {
         const esp = S.vista !== "escaneo" ? Math.abs(i - N / 2) * 7 : 0, sube = !cae && tgt[i * P + CA] > 0.5 && S.vista !== "equipo";
         poner(i, { [CA]: cae }, esp + (cae ? 380 : 0)); poner(i, o, esp + (sube ? 300 : 0));
@@ -110,14 +162,14 @@ export function montar(H, puente) {
 
   // ---- capa de rótulos: un botón por ojo (se pica, se enfoca, se recorre con flechas) ----
   const capaOjos = $("#ojos");
-  capaOjos.innerHTML = E.map((d) => `<button class="ojo" data-i="${d.i}" tabindex="${d.i === 0 ? 0 : -1}" aria-label="${esc(d.nombre)}, ${esc(d.ip)}, ${ESTADO_TXT[d.estado]}"><span class="nombre"><b>${esc(d.nombre)}</b><i>${esc(d.ip)}, ${ESTADO_TXT[d.estado]}</i></span></button>`).join("");
+  capaOjos.innerHTML = E.map((d) => `<button class="ojo" data-i="${d.i}"${d.i === G ? " hidden" : ""} tabindex="${d.i === 0 ? 0 : -1}" aria-label="${esc(d.nombre)}, ${esc(d.ip)}, ${ESTADO_TXT[d.estado]}"><span class="nombre"><b>${esc(d.nombre)}</b><i>${esc(d.ip)}, ${ESTADO_TXT[d.estado]}</i></span></button>`).join("");
   const ojos = $$(".ojo", capaOjos);
   $("#grupos").innerHTML = grupos.map((g) => `<span class="grupo">${g.icono}${g.plural} <b>${g.ids.length}</b></span>`).join("");
   const rotGrupos = $$("#grupos .grupo");
   let anchoG = [], estorbos = {};
   function cajas() {     // lo que un rótulo de grupo no debe pisar, y cuánto mide cada rótulo
     anchoG = rotGrupos.map((el) => el.offsetWidth);
-    estorbos = { red: ["#diag", "#urgente", "#buscar", "#lanza", "#pestanas"], escaneo: ["#escaneo"] };
+    estorbos = { red: ["#diag", "#urgente", "#buscar", "#lanza", "#pestanas", "#lente"], plan: ["#plan", "#volver", "#lente"], escaneo: ["#escaneo"] };   // encuadrar() usa los dos primeros de red y el primero de plan
     for (const v in estorbos) estorbos[v] = estorbos[v].map((s) => $(s).getBoundingClientRect());
   }
   function colocar() {
@@ -158,19 +210,29 @@ export function montar(H, puente) {
     if (corte.signal.aborted) return;
     if (/red|plan|equipo/.test(vista) && !S.datos) vista = "vacio";
     if (S.scan && vista !== "escaneo") return;
+    const antes = S.vista;
     S.vista = vista; S.hover = -1; S.accion = null; S.parte = null;
     if (vista !== "plan") S.fija = null;
-    document.body.dataset.vista = vista;
-    const h = "#" + vista + (vista === "equipo" ? "=" + E[S.sel].ip : "");
+    if (vista !== "red" && vista !== "plan") S.marca = null;
+    document.body.dataset.vista = vista; document.body.dataset.lente = S.lente;
+    // la vista elegida a mano viaja en el hash (#esfera, #abanico, #plan,esfera); la que sale del tamaño de la red, no
+    const hv = vista + (vista === "equipo" ? "=" + E[S.sel].ip : ""), h = "#" + (!S.lenteFija ? hv : vista === "red" ? S.lente : hv + "," + S.lente);
     if (location.hash !== h && !opc.sinHash) history.replaceState(null, "", h);
     if (vista === "equipo") ficha();
     E.forEach((d) => { if (vista !== "escaneo") est[d.i] = S.datos ? ESTADO_N[d.estado] : 0; });
-    partes(); objetivos(true); pintarPlan();
+    rotulos(); cajas();
+    const esf = S.lente === "esfera" && enEscena();
+    if (vista !== "escaneo") ESF.escaneo(null);
+    if (esf && antes === "equipo") ESF.elegir(E[S.sel]);   // al volver de la ficha, la esfera te deja en ese equipo
+    encuadrar(); ESF.activar(esf);
+    partes(); objetivos(true); pintarPlan(); refEsfera();
     if (opc.salto) saltar();
     const foco = { plan: "#plan h2", lanzar: '#cartas [data-d="0"] button', equipo: "#ficha .raquis h2", vacio: "#vacio h1", escaneo: "#cancelar" }[vista];
-    if (foco && !opc.salto) { const el = $(foco); el && el.focus({ preventScroll: true }); }
+    if (foco && !opc.salto && !opc.sinFoco) { const el = $(foco); el && el.focus({ preventScroll: true }); }
   }
-  function elegir(i) { S.sel = i; S.antes = S.vista === "plan" ? "plan" : "red"; ir("equipo"); }
+  const alojar = (d) => { if (d.i < 0) { E[G].i = -1; E[G] = d; d.i = G; } return d.i; };   // la pluma de un equipo; si no está en el abanico, ocupa la invitada
+  function elegir(d) { if (typeof d === "number") d = E[d]; S.sel = alojar(d); S.antes = S.vista === "plan" ? "plan" : "red"; ir("equipo"); }   // la misma ficha, venga del abanico, de la esfera, del plan o del buscador
+  const otro = (p) => { S.sel = S.sel >= NV ? (p > 0 ? 0 : NV - 1) : (S.sel + p + NV) % NV; ir("equipo"); };   // pluma anterior o siguiente; desde la invitada se vuelve al abanico
 
   // ---- diagnóstico (esquina superior izquierda) ----
   function diagnostico() {
@@ -178,32 +240,32 @@ export function montar(H, puente) {
     $("#pestanas").innerHTML = $("#esc-pestanas").innerHTML = H.pestanas.length < 2 ? "" : '<p class="sub">Ver lo que encontró</p>' + H.pestanas.map((p) => `<button class="pest${p.nueva ? " nueva" : ""}" data-p="${p.id}" aria-pressed="${p.activa}">${esc(p.label)}<small>${p.nueva ? "nuevo" : esc(p.cuando)}</small></button>`).join("");
     $("#cifras").innerHTML = ["riesgo", "alerta", "seguro"].map((e) => `<button class="cifra" data-e="${e}" aria-pressed="${S.filtro === e}">${glifo(e)}<b>${H.cuenta(e)}</b> ${ESTADO_TXT[e]}</button>`).join("");
   }
-  $("#cifras").addEventListener("click", (ev) => { const b = ev.target.closest(".cifra"); if (!b) return; S.filtro = S.filtro === b.dataset.e ? null : b.dataset.e; diagnostico(); objetivos(); const el = $(`.cifra[data-e="${b.dataset.e}"]`); el && el.focus(); });
+  $("#cifras").addEventListener("click", (ev) => { const b = ev.target.closest(".cifra"); if (!b) return; S.filtro = S.filtro === b.dataset.e ? null : b.dataset.e; diagnostico(); objetivos(); refEsfera(true); const el = $(`.cifra[data-e="${b.dataset.e}"]`); el && el.focus(); });
   // en el panel del escaneo la pestaña activa también se puede elegir: saca de la espera y deja el escaneo en segundo plano
   addEventListener("click", (ev) => { const b = ev.target.closest(".pest"); if (b && (b.getAttribute("aria-pressed") !== "true" || S.scan) && !(S.scan && S.scan.rev)) puente.pestana(b.dataset.p); });
   const campo = $("#q");
-  campo.addEventListener("input", () => { S.q = campo.value.trim(); const n = E.filter(coincide).length; $("#qn").textContent = S.q ? (n ? `${n} de ${N}` : "Ninguno coincide") : ""; objetivos(); });
-  campo.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { const d = E.find(coincide); if (d && S.q) elegir(d.i); } });
+  campo.addEventListener("input", () => { S.q = campo.value.trim(); const n = TODOS.filter(coincide).length; $("#qn").textContent = S.q ? (n ? `${n} de ${TODOS.length}` : "Ninguno coincide") : ""; objetivos(); refEsfera(true); });
+  campo.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { const d = E.slice(0, NV).find(coincide) || TODOS.find(coincide); if (d && S.q) elegir(d); } });
 
   // ---- plan ----
   const filaAccion = (a, n) => `<li><button class="accion" data-a="${n}" aria-expanded="false"><span class="t">${esc(a.titulo)}</span><span class="quien">${a.hosts.slice(0, 6).map((d) => glifo(d.estado)).join("")}<em>${a.hosts.length === 1 ? esc(a.hosts[0].nombre) : a.hosts.length + " equipos"}</em></span></button>
-    <div class="mas"><p>${esc(a.motivo)}</p><ol>${a.pasos.map((p) => `<li>${esc(p)}</li>`).join("")}</ol><p class="hosts">${a.hosts.map((d) => `<button class="hilo" data-i="${d.i}">${esc(d.nombre)} <span class="ip">${esc(d.ip)}</span></button>`).join("")}</p></div></li>`;
+    <div class="mas"><p>${esc(a.motivo)}</p><ol>${a.pasos.map((p) => `<li>${esc(p)}</li>`).join("")}</ol><p class="hosts">${a.hosts.slice(0, 8).map((d) => `<button class="hilo" data-ip="${esc(d.ip)}">${esc(d.nombre)} <span class="ip">${esc(d.ip)}</span></button>`).join("")}${a.hosts.length > 8 ? `<em>y ${a.hosts.length - 8} más</em>` : ""}</p></div></li>`;   // por IP: con red grande el equipo puede no tener pluma
   $("#plan-lista").innerHTML = ["riesgo", "alerta", "info"].map((p) => { const l = H.plan.map((a, n) => [a, n]).filter(([a]) => a.prioridad === p); return `<h3>${PRIO_TXT[p]} <b>${l.length}</b></h3><ul>${l.map(([a, n]) => filaAccion(a, n)).join("")}</ul>`; }).join("");
   $("#urgente-lista").innerHTML = H.plan.slice(0, 3).map((a, n) => `<li><button class="accion corta" data-a="${n}"><span class="t">${esc(a.titulo)}</span></button></li>`).join("") || '<li class="sub">Nada pendiente.</li>';
   $("#ver-plan").textContent = `Ver el plan, ${H.plan.length} ${H.plan.length === 1 ? "acción" : "acciones"}`; $("#ver-plan").style.display = H.plan.length ? "" : "none";
   function pintarPlan() { const v = accionViva(); $$(".accion").forEach((b) => { const on = v === H.plan[+b.dataset.a]; b.classList.toggle("viva", on); if (b.hasAttribute("aria-expanded")) b.setAttribute("aria-expanded", on); }); }
-  function senalar(a) { if (S.accion === a) return; S.accion = a; objetivos(); pintarPlan(); }
+  function senalar(a) { if (S.accion === a) return; S.accion = a; objetivos(); pintarPlan(); refEsfera(); }
   for (const cont of [$("#plan"), $("#urgente")]) {
     cont.addEventListener("pointerover", (ev) => { const b = ev.target.closest(".accion"); if (b) senalar(H.plan[+b.dataset.a]); });
     cont.addEventListener("pointerleave", () => senalar(null));
     cont.addEventListener("focusin", (ev) => { const b = ev.target.closest(".accion"); if (b) senalar(H.plan[+b.dataset.a]); });
     cont.addEventListener("focusout", (ev) => { if (!cont.contains(ev.relatedTarget)) senalar(null); });
     cont.addEventListener("click", (ev) => {
-      const h = ev.target.closest(".hilo"); if (h) return elegir(+h.dataset.i);
+      const h = ev.target.closest(".hilo"); if (h) return elegir(porIp.get(h.dataset.ip));
       const b = ev.target.closest(".accion"); if (!b) return;
       const a = H.plan[+b.dataset.a];
       if (S.vista !== "plan") { ir("plan"); S.fija = a; } else S.fija = S.fija === a ? null : a;
-      objetivos(); pintarPlan();
+      objetivos(); pintarPlan(); refEsfera();
     });
   }
 
@@ -288,11 +350,13 @@ export function montar(H, puente) {
   function escaneando(o) {     // o: grupo, nombre, t0 (en el reloj de performance.now), previo (segundos de la vez anterior, 0 si no hay), previoTxt
     if (S.scan) return;
     alzada.fill(0);
-    S.scan = { t0: o.t0, grupo: o.grupo, antes: S.datos ? "red" : "vacio", previo: o.previo };
+    const esf = S.lente === "esfera" && ESF.ok;
+    S.scan = { t0: o.t0, grupo: o.grupo, antes: S.datos ? "red" : "vacio", previo: o.previo, esf };
+    if (esf) ESF.escaneo(0);
     ir("escaneo");
     tituloScan(o);
     $("#esc-antes").textContent = o.previo ? "La vez anterior tardó " + o.previoTxt + "." : "No hay registro de la vez anterior.";
-    $("#esc-fase").textContent = "El abanico se recoge mientras Argos mira.";
+    $("#esc-fase").textContent = esf ? "La esfera se apaga mientras Argos mira." : "El abanico se recoge mientras Argos mira.";
     $("#cancelar").style.display = "";
     vivo.textContent = "Escaneo en curso. Puedes cancelarlo.";
     cajas();   // el panel del escaneo cambió de alto con su texto
@@ -303,7 +367,9 @@ export function montar(H, puente) {
   $("#curso-cancelar").addEventListener("click", () => { $("#curso-cancelar").disabled = true; puente.cancelar(); });
   function revelar(o) {        // o: grupo, nombre, ms (lo que tardó). Las plumas se alzan por grupo, se abren los ojos y queda el abanico.
     alzada.fill(0); est.fill(0);
-    S.scan = { t0: ahora, grupo: o.grupo, rev: true, fase: 0, ojos: false };
+    const esf = S.lente === "esfera" && ESF.ok;   // en la esfera se revela casquete a casquete; en el abanico, grupo a grupo
+    S.scan = { t0: ahora, grupo: o.grupo, rev: true, fase: 0, ojos: false, esf, fases: esf ? ESF.caps.map((n) => ({ plural: n })) : grupos };
+    if (esf) ESF.escaneo(0);
     ir("escaneo", { salto: true });
     tituloScan(o);
     $("#esc-reloj").textContent = reloj(o.ms); $("#esc-antes").textContent = "Escaneo terminado."; $("#esc-fase").textContent = "";
@@ -319,18 +385,18 @@ export function montar(H, puente) {
       if (sc.previo && !sc.tarde && t > sc.previo * 1000 + 400) { sc.tarde = true; $("#esc-antes").textContent = "Está tardando más que la vez anterior."; }
       return;
     }
-    const inicio = 300, fin = REV - 1900, g = Math.floor((t - inicio) / ((fin - inicio) / grupos.length));
-    while (sc.fase <= Math.min(g, grupos.length - 1)) {
-      const gr = grupos[sc.fase++];
-      gr.ids.forEach((i) => { alzada[i] = 1; });
-      $("#esc-fase").textContent = (sc.grupo === "Detectar" ? "Mirando: " : "Se alzan: ") + gr.plural.toLowerCase() + ".";
+    const fs = sc.fases, inicio = 300, fin = REV - 1900, g = Math.floor((t - inicio) / ((fin - inicio) / fs.length));
+    while (sc.fase <= Math.min(g, fs.length - 1)) {
+      const gr = fs[sc.fase++];
+      if (sc.esf) ESF.escaneo(sc.fase); else gr.ids.forEach((i) => { alzada[i] = 1; });
+      $("#esc-fase").textContent = (sc.grupo === "Detectar" ? "Mirando: " : sc.esf ? "Aparece: " : "Se alzan: ") + gr.plural.toLowerCase() + ".";
       objetivos();
     }
     if (!sc.ojos && t > REV - 1400) {
-      sc.ojos = true; $("#esc-fase").textContent = "Se abren los ojos.";
+      sc.ojos = true; $("#esc-fase").textContent = "Se abren los ojos."; if (sc.esf) ESF.escaneo(fs.length, true);
       E.forEach((d) => setTimeout(() => { if (S.scan === sc) { est[d.i] = ESTADO_N[d.estado]; poner(d.i, { [OP]: est[d.i] ? 1 : 0, [BR]: est[d.i] ? 1 : 0.7 }, 0); } }, calma ? 0 : 150 + (total > 0 ? pos[d.i] / total : 0) * 700));
     }
-    if (t > REV + 400 && sc.fase >= grupos.length && sc.ojos) {
+    if (t > REV + 400 && sc.fase >= fs.length && sc.ojos) {
       S.scan = null; S.filtro = null; diagnostico(); ir("red");
       vivo.textContent = `Escaneo terminado. ${H.cuenta("riesgo")} equipos en riesgo, ${H.cuenta("alerta")} en alerta, ${H.cuenta("seguro")} sin pendientes.`;
     }
@@ -339,7 +405,7 @@ export function montar(H, puente) {
   function terminado(error) {  // cancelado o fallido: se repliega y vuelve a lo que había
     if (S.curso) { S.curso = null; $("#curso").hidden = true; $("#curso-cancelar").disabled = false; return avisar(error || "Escaneo cancelado. Conservas el resultado anterior.", error ? 12000 : 4200); }
     const sc = S.scan; if (!sc) return;
-    alzada.fill(0); objetivos();
+    alzada.fill(0); objetivos(); if (sc.esf) ESF.escaneo(0);
     S.scan = null; document.body.dataset.cancel = "1";
     avisar(error || (sc.antes === "red" ? "Escaneo cancelado. Conservas el resultado anterior." : "Escaneo cancelado."), error ? 12000 : 4200);
     setTimeout(() => { delete document.body.dataset.cancel; ir(sc.antes); }, calma ? 0 : 750);
@@ -425,34 +491,39 @@ export function montar(H, puente) {
   capaOjos.addEventListener("keydown", (ev) => {
     const b = ev.target.closest(".ojo"); if (!b) return;
     const d = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 1, ArrowUp: -1 }[ev.key], i = +b.dataset.i;
-    if (d) { ev.preventDefault(); ojos[(i + d + N) % N].focus(); }
-    if (ev.key === "Home") ojos[0].focus(); if (ev.key === "End") ojos[N - 1].focus();
+    if (d) { ev.preventDefault(); ojos[(i + d + NV) % NV].focus(); }
+    if (ev.key === "Home") ojos[0].focus(); if (ev.key === "End") ojos[NV - 1].focus();
   });
   addEventListener("keydown", (ev) => {
     if (pers.open) return;   // el diálogo se queda con Esc y las flechas
     const enCampo = /INPUT|TEXTAREA/.test(document.activeElement.tagName);
-    if (ev.key === "Escape") { if (S.scan) return; if (enCampo && campo.value) { campo.value = ""; campo.dispatchEvent(new Event("input")); return; } ir(S.vista === "equipo" ? S.antes : "red"); }
+    if (ev.key === "Escape") { if (S.scan) return; if (enCampo && campo.value) { campo.value = ""; campo.dispatchEvent(new Event("input")); return; } if (S.lente === "esfera" && enEscena() && ESF.atras()) return; ir(S.vista === "equipo" ? S.antes : "red"); }   // en la esfera, Esc primero sale del casquete
+    if ((ev.key === "v" || ev.key === "V") && !enCampo && !ev.ctrlKey && !ev.metaKey && !ev.altKey) lente(S.lente === "esfera" ? "abanico" : "esfera");
     if (ev.key === "/" && !enCampo && S.vista === "red") { ev.preventDefault(); campo.focus(); }
     if (S.vista === "lanzar" && !enCampo && (ev.key === "ArrowRight" || ev.key === "ArrowLeft")) { ev.preventDefault(); const p = ev.key === "ArrowRight" ? 1 : -1, k = alFrente() + p, r = RUEDAS[cual]; k >= r.hasta && !cual ? cambiar(1, NM, true) : k < r.de && cual ? cambiar(0, NM - 1, true) : girar(k, true); }
-    if (S.vista === "equipo" && !enCampo && (ev.key === "ArrowRight" || ev.key === "ArrowLeft") && !ev.target.closest("#ficha-cuerpo")) { S.sel = (S.sel + (ev.key === "ArrowRight" ? 1 : -1) + N) % N; ir("equipo"); }
+    if (S.vista === "equipo" && !enCampo && (ev.key === "ArrowRight" || ev.key === "ArrowLeft") && !ev.target.closest("#ficha-cuerpo")) otro(ev.key === "ArrowRight" ? 1 : -1);
   });
   addEventListener("click", (ev) => {
+    const l = ev.target.closest("button[data-lente]"); if (l) return lente(l.dataset.lente);   // solo los botones: el body también lleva data-lente
     const b = ev.target.closest("[data-ir]"); if (!b || b.disabled) return;
     if (b.dataset.ir === "volver") return ir(S.vista === "equipo" ? S.antes : "red");
-    if (b.dataset.ir === "otro") { S.sel = (S.sel + +b.dataset.paso + N) % N; return ir("equipo"); }
+    if (b.dataset.ir === "otro") return otro(+b.dataset.paso);
     if (b.dataset.ir === "rapido") return S.curso ? avisar("Ya hay un escaneo en curso.") : puente.lanzar(H.ESCANEOS.mapear[0][3], "");
     if (b.dataset.carta) cambiar(+b.dataset.carta ? 1 : 0, +b.dataset.carta);
     ir(b.dataset.ir);
   });
+  // Hashes de Argos (#red, #equipo=IP, #plan, #lanzar) más la vista elegida a mano: #esfera, #abanico, o tras una coma (#plan,esfera).
   function deHash(salto) {
-    const [v, arg] = location.hash.slice(1).split("=");
+    let v, arg, l;
+    for (const p of decodeURIComponent(location.hash.slice(1)).split(",").filter(Boolean)) { const [k, a] = p.split("="); if (k === "esfera" || k === "abanico") l = k; else if (!v) { v = k; arg = a; } }
+    if (l) { S.lente = l; S.lenteFija = true; v = v || "red"; }
     if (!v) return false;
-    if (["red", "plan", "lanzar", "equipo"].includes(v)) { if (v === "equipo" && arg) { const i = E.findIndex((d) => d.ip === arg); if (i >= 0) S.sel = i; } ir(v, { salto }); if (v === "plan" && salto && H.plan.length && S.datos) { S.fija = H.plan[0]; objetivos(); pintarPlan(); saltar(); } }
+    if (["red", "plan", "lanzar", "equipo"].includes(v)) { if (v === "equipo" && arg) { const d = porIp.get(arg); if (d) S.sel = alojar(d); } ir(v, { salto }); if (v === "plan" && salto && H.plan.length && S.datos) { S.fija = H.plan[0]; objetivos(); pintarPlan(); saltar(); } }
     else return false;
     return true;
   }
   addEventListener("hashchange", () => deHash(false));
-  addEventListener("resize", () => { medidas(); cajas(); if (S.vista === "equipo") ficha(); objetivos(); saltar(); subir(); colocar(); gl.render(); });   // al cambiar de tamaño no hay muelle: se recoloca y se pinta ya
+  addEventListener("resize", () => { medidas(); cajas(); encuadrar(); if (S.vista === "equipo") ficha(); objetivos(); saltar(); subir(); colocar(); gl.render(); });   // al cambiar de tamaño no hay muelle: se recoloca y se pinta ya
 
   // ---- cuadro ----
   function subir() {
@@ -477,7 +548,7 @@ export function montar(H, puente) {
     const kL = calma ? 1 : 1 - Math.exp(-dt * 2.2); lx += (tx - lx) * kL; ly += (ty - ly) * kL;
     gl.U.uLight.value.set(lx, ly); gl.U.uTime.value = calma ? 0 : s;
     if (!estaba || !quieto) colocar();
-    gl.render();
+    if (!(estaba && quieto && S.lente === "esfera" && enEscena())) gl.render();   // con la esfera en escena y la cola ya abajo, el abanico no se pinta
     rafId = requestAnimationFrame(cuadro);
   }
 
@@ -488,7 +559,7 @@ export function montar(H, puente) {
     S.vista = "lanzar"; objetivos(); saltar(); ir("red");
   }
   document.fonts && document.fonts.ready.then(() => { cajas(); quieto = false; });
-  window.ARGOS = { S, H, ir, elegir };   // para herramientas/prueba.mjs
+  window.ARGOS = { S, H, E, ir, elegir, lente, esfera: ESF };   // para herramientas/prueba.mjs
   let rafId = requestAnimationFrame(cuadro);
-  return { escaneando, enCurso, revelar, terminado, avisar, destruir() { corte.abort(); cancelAnimationFrame(rafId); clearTimeout(tAviso); gl.destruir(); } };
+  return { escaneando, enCurso, revelar, terminado, avisar, destruir() { corte.abort(); cancelAnimationFrame(rafId); clearTimeout(tAviso); gl.destruir(); ESF.destruir(); } };
 }

@@ -4,6 +4,7 @@
 // avisos del escaneo (empezó, se canceló, falló).
 
 import "./argos/argos.css";
+import "./argos/esfera.css";
 import { montar, type Vista } from "./argos/app.js";
 import { armar } from "./argos/datos";
 import { heraApi, type CategoryResult } from "./api/heraApi";
