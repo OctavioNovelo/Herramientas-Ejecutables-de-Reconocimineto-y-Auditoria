@@ -325,7 +325,7 @@ function crearEtiquetas() {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'cap-b'; c.boton = b; b._c = c;
     // ya dentro del casquete, Intro abre el equipo que las flechas señalan
     b.addEventListener('click', () => { if (escan) return; if (c === S.foco && S.hover && S.hover.cap === c) op.alElegir(S.hover.e); else enfocar(c); });
-    b.addEventListener('mouseenter', () => { S.hoverCap = c; marcar(); });
+    b.addEventListener('mouseenter', () => { if (escan) return; S.hoverCap = c; marcar(); });
     b.addEventListener('mouseleave', () => { S.hoverCap = null; marcar(); });
     b.addEventListener('focus', () => { if (b.matches(':focus-visible')) mostrar([c.c]); });
     b.addEventListener('blur', () => { if (S.hover) { S.hover = null; marcar(); } });
@@ -487,8 +487,10 @@ function alSubir(ev) {
 function clic(ev) {
   if (escan) return;
   const t = tocar(ev);
-  if (t.dev) op.alElegir(t.dev.e);            // la ficha es la de Argos
+  // ficha solo si el ojo está a la vista (enfocado, resaltado o bajo el puntero); el resto del casquete acerca
+  if (t.dev && (t.dev.cap === S.foco || t.dev === S.hover || S.res.has(t.dev) || t.dev === S.sel)) op.alElegir(t.dev.e);
   else if (t.cap && t.cap !== S.foco) enfocar(t.cap);
+  else if (t.dev) op.alElegir(t.dev.e);
   else if (t.cap && S.sel) { S.sel = null; marcar(); }
 }
 // Zoom semántico: al cruzar el umbral cambia lo que se muestra, no solo el tamaño.
