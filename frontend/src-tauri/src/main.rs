@@ -642,7 +642,7 @@ import sys, json
 sys.path.append('.')
 try:
     from utils.system_info import obtener_sistema_operativo, obtener_carpeta_os
-    from utils.parser import buscar_resultados, obtener_resultados_categoria
+    from utils.parser import buscar_resultados, escaneo_finalizado, obtener_resultados_categoria
 
     os_name = obtener_sistema_operativo()
     os_folder = obtener_carpeta_os(os_name)
@@ -653,6 +653,9 @@ try:
 
     if not archivos:
         print(json.dumps({"devices": [], "found": False}))
+    elif not escaneo_finalizado(archivos[0]):
+        # Un escaneo interrumpido deja el archivo truncado; no mostrarlo como vacío en silencio.
+        print(json.dumps({"devices": [], "found": False, "error": "El último escaneo de esta categoría no terminó (resultado incompleto). Vuelve a ejecutarlo."}))
     else:
         resultado = obtener_resultados_categoria(archivos[0])
         resultado["found"] = "error" not in resultado

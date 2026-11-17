@@ -275,7 +275,8 @@ def escaneo_profundo(context, timing_level=4, hosts_file_override=None, evasion=
         hosts_file = resultados_dir / "hosts.txt"
         _escribir_hosts_file(hosts_file, context, target=None)
 
-    args = [str(context["bin_path"]), "-sS", "-sV", "-O", "-p-", f"-T{timing_level}", *descubrimiento,
+    # shortcut: tope de 15 min por host con -p-; un host que se cuelga ya no bloquea la corrida para siempre, upgrade: calibrar el tope con mas corridas reales.
+    args = [str(context["bin_path"]), "-sS", "-sV", "-O", "-p-", f"-T{timing_level}", "--host-timeout", "15m", *descubrimiento,
             "-iL", str(hosts_file),
             "-oN", f"{result_path}_normal.txt",
             "-oG", f"{result_path}_grepable.txt",
