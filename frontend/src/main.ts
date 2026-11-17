@@ -20,6 +20,7 @@ let categorias: Record<string, CategoryResult | undefined> = {};
 let faltan: Record<string, string> = {};
 let pestana: string | null = null; // resultados de un solo escaneo (id de categoría); null es Todo
 let nueva: string | null = null; // el escaneo que acaba de terminar, hasta que se abre su pestaña
+let grupo: string | null = null, pagina = 0; // el grupo abierto desde la lente de grupos (tipo de equipo) y su página
 let escaneo: { id: string; grupo: string; nombre: string; t0: number; cancelado: boolean } | null = null;
 
 async function leerCategorias() {
@@ -43,7 +44,9 @@ async function remontar(st: AppState, leer = true) {
   capa.innerHTML = esqueleto;
   const viejo = document.querySelector("#gl")!, lienzo = viejo.cloneNode() as HTMLCanvasElement; // un lienzo nuevo: el contexto WebGL anterior se soltó
   viejo.replaceWith(lienzo);
-  vista = montar({ ...armar({ devices: st.devices, stats: st.stats, hostInfo: st.hostInfo, categorias, faltan, pestana, nueva }), plano: await plano }, {
+  const modelo = armar({ devices: st.devices, stats: st.stats, hostInfo: st.hostInfo, categorias, faltan, pestana, nueva, grupo, pagina });
+  grupo = modelo.grupo; pagina = modelo.pagina; // un grupo que ya no tiene equipos se olvida
+  vista = montar({ ...modelo, plano: await plano }, {
     lanzar(cat, objetivo, opciones) {
       if (escaneo) return vista!.avisar("Ya hay un escaneo en curso.");
       const previo = categorias[cat.id]?.scan_time;
@@ -65,6 +68,15 @@ async function remontar(st: AppState, leer = true) {
         document.querySelector<HTMLElement>('#pestanas .pest[aria-pressed="true"]')?.focus();
       });
     },
+    grupo(tipo, p) {
+      const de = grupo;
+      grupo = tipo; pagina = p;
+      remontar(scanState.getState(), false).then(() => {
+        if (escaneo) vista!.enCurso(escaneo);
+        // al entrar, el foco va a la primera pluma; al volver, a la pluma del grupo de donde se vino
+        document.querySelector<HTMLElement>(tipo ? "#ojos .ojo:not([hidden])" : `#vgrupos .ojo[data-g="${de}"]`)?.focus({ preventScroll: true });
+      });
+    },
   });
 }
 
@@ -78,6 +90,7 @@ function alCambiar(st: AppState) {
   if (st.error) return vista?.terminado(st.error);
   if (!e || e.cancelado) return vista?.terminado();
   pestana = null; nueva = e.id;   // se vuelve a Todo; la pestaña del escaneo queda marcada
+  grupo = null; pagina = 0;   // y a la red entera: el revelado muestra todos los grupos, no solo el que estaba abierto
   remontar(st).then(() => {
     if (st.devices.length) vista!.revelar({ grupo: e.grupo, nombre: e.nombre, ms: performance.now() - e.t0 });
     else vista!.avisar("El escaneo terminó sin encontrar equipos.", 8000);

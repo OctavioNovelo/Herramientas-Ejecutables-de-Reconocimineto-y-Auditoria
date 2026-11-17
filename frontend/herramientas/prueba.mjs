@@ -36,7 +36,7 @@ try {
   if (process.env.GPU) throw new Error("solo fps");
   { const [x, y] = await centro('.ojo[aria-label^="MikroTik"]'); await mover(x + 4, y + 13); const m = []; for (let i = 0; i < 10; i++) { await dormir(150); m.push(await ev("ARGOS.S.hover")); } out.hoverEstable = m.join(","); await clic(x + 4, y + 13); await dormir(900); out.clicOjo = await st(); await tecla("Escape"); await dormir(1300); }
   await mover(...(await centro('.ojo[aria-label^="Hikvision DS-2CD2043"]'))); await dormir(700); out.hover = await st(); await foto("x-hover");
-  await clic(...(await centro('.cifra[data-e="alerta"]'))); await dormir(1000); out.filtro = await st(); out.rotulosAlerta = await ev(`document.querySelectorAll(".ojo.ver").length`); await foto("x-filtro");
+  await clic(...(await centro('.cifra[data-e="alerta"]'))); await dormir(1000); out.filtro = await st(); out.rotulosAlerta = await ev(`document.querySelectorAll("#ojos .ojo.ver").length`); await foto("x-filtro");
   await clic(...(await centro('.cifra[data-e="alerta"]'))); await mover(800, 20);
   await tecla("/"); for (const c of "samba") await tecla(c); await dormir(600); out.busca = await ev(`document.activeElement.id + ": " + document.querySelector("#qn").textContent`); await foto("x-busca");
   await tecla("Enter"); await dormir(2000); out.trasEnter = await st();
@@ -48,7 +48,7 @@ try {
   await mover(det[0] + 60, det[1] + 2); await dormir(300); out.raquisGL = await st();
   await mover(800, 900); await ev("document.activeElement.blur()"); await tecla("ArrowRight"); await dormir(500); out.siguiente = await st();
   await tecla("Escape"); await dormir(1500); out.esc = await st();
-  await ev(`document.querySelector(".ojo").focus()`); await tecla("ArrowRight"); await tecla("ArrowRight"); out.foco = await ev(`document.activeElement.getAttribute("aria-label")`); await foto("x-foco");
+  await ev(`document.querySelector("#ojos .ojo").focus()`); await tecla("ArrowRight"); await tecla("ArrowRight"); out.foco = await ev(`document.activeElement.getAttribute("aria-label")`); await foto("x-foco");
   await tecla("Enter"); await dormir(700); out.enterOjo = await st();
   await ev(`location.hash = "#plan"`); await dormir(1800); out.plan = await st();
   await mover(...(await centro("#plan .accion", 6))); await dormir(900); out.planHover = await st(); out.planRotulos = await ev(`[...document.querySelectorAll(".ojo.ver b")].map(b => b.textContent).join(", ")`); await foto("x-plan-hover");
@@ -64,7 +64,7 @@ try {
     const r = []; for (const [x, p] of vis(${JSON.stringify(a)})) for (const [y, q] of vis(${JSON.stringify(b)})) if (x !== y && !x.contains(y) && !y.contains(x) && p.width && q.width && p.left < q.right - 1 && p.right > q.left + 1 && p.top < q.bottom - 1 && p.bottom > q.top + 1) r.push(x.textContent.trim().slice(0, 16) + " x " + (y.id || y.className) + " " + y.textContent.trim().slice(0, 16)); return r; })()`);
   const frente = () => ev(`document.querySelector('.carta[data-d="0"] h3').textContent`);
   await tam(1257, 662); await cdp("Page.navigate", { url: "about:blank" }); await abrir("#red"); await mover(8, 400); await dormir(1200); await foto("red-1257");
-  out.chica = { nombresEnReposo: await ev(`document.querySelectorAll(".ojo.ver").length`), pisanRed: await pisan(".grupo.ver", "#diag, #urgente, #buscar, #lanza, .ojo, .grupo.ver") };
+  out.chica = { nombresEnReposo: await ev(`document.querySelectorAll("#ojos .ojo.ver").length`), pisanRed: await pisan(".grupo.ver", "#diag, #urgente, #buscar, #lanza, .ojo, .grupo.ver") };
   await mover(...(await centro('.ojo[aria-label^="Synology"]'))); await dormir(600); out.chica.nombresConCursor = await ev(`[...document.querySelectorAll(".ojo.ver b")].map((b) => b.textContent).join("|")`);
   await clic(...(await centro('#lanza [data-carta="0"]'))); await dormir(2600); await foto("lanzar-1257");
   out.chica.pisanLanzar = await pisan("#inicio, #volver, #lanzar header, #lz-pie", '#lanzar header, #lz-pie, .carta[data-d="0"], .carta[data-d="1"]');
@@ -74,7 +74,7 @@ try {
   await clic(...(await centro("#lz-otra"))); await dormir(1100); out.chica.otraRueda = await frente(); out.chica.pisanFlecha = await pisan("#lz-otra", '.carta[data-d="0"], .carta[data-d="1"], #volver');
   await clic(...(await centro("#volver"))); await dormir(1600); out.chica.volverConClic = await ev("document.body.dataset.vista");
   await ev(`location.hash = "#plan"`); await dormir(1500); await clic(...(await centro("#volver"))); await dormir(1300); out.chica.volverDesdePlan = await ev("document.body.dataset.vista");
-  await clic(...(await centro(".ojo"))); await dormir(1500); await clic(...(await centro("#volver"))); await dormir(1300); out.chica.volverDesdeFicha = await ev("document.body.dataset.vista");
+  await clic(...(await centro("#ojos .ojo"))); await dormir(1500); await clic(...(await centro("#volver"))); await dormir(1300); out.chica.volverDesdeFicha = await ev("document.body.dataset.vista");
   await clic(...(await centro('#lanza [data-carta="0"]'))); await dormir(2400); await lanzarCarta(); await dormir(4500);
   out.chica.pisanEscaneo = await pisan(".grupo.ver", "#escaneo, #cancelar, .grupo.ver"); await clic(...(await centro("#cancelar"))); await dormir(1500);
 } catch (e) { out.FALLO = String(e).slice(0, 400); } finally { out.errs = errs; console.log(JSON.stringify(out, null, 1)); try { ws && ws.close(); } catch {} ch.kill("SIGKILL"); }

@@ -45,7 +45,13 @@ export interface Modelo {
   red: string;
   pestanas: { id: string; label: string; cuando: string; activa: boolean; nueva: boolean; fin?: string; n?: number }[];   // "" es Todo; el resto, un escaneo con resultados
   plano?: boolean;   // el webview no pinta CSS 3D: la rueda de cartas usa su respaldo en 2D
+  grupo: Tipo | null;   // el abanico de un solo grupo (lente de grupos); null, la red entera
+  pagina: number;   // dentro de un grupo de más de POR_PAGINA equipos, desde 0
+  paginas: number;
 }
+
+const POR_PAGINA = 60;   // el tope del abanico (UMBRAL en app.js)
+const URGENCIA: Record<EstadoEquipo, number> = { riesgo: 0, alerta: 1, seguro: 2 };
 
 // Orden del abanico: la red (con el router) queda al centro.
 const ORDEN_ABANICO: Tipo[] = ["tv", "consola", "telefono", "computadora", "router", "servidor", "impresora", "camara", "domotica", "desconocido"];
@@ -100,9 +106,11 @@ export interface Fuentes {
   faltan: Record<string, string>; // herramienta sin instalar: tamaño de la descarga
   pestana?: string | null; // id de categoría: el abanico se arma solo con lo que vio ese escaneo
   nueva?: string | null; // id de la categoría que acaba de terminar
+  grupo?: string | null; // tipo de equipo: el abanico se arma solo con ese grupo, sin releer el backend
+  pagina?: number;
 }
 
-export function armar({ devices: combinados, stats, hostInfo, categorias, faltan, pestana, nueva }: Fuentes): Modelo {
+export function armar({ devices: combinados, stats, hostInfo, categorias, faltan, pestana, nueva, grupo: pedido, pagina: pag = 0 }: Fuentes): Modelo {
   // shortcut: un escaneo que terminó sin equipos no tiene pestaña (se vuelve a Todo); darle una si hace falta decir "no encontró nada".
   const conDatos = (id: string) => !!categorias[id]?.devices?.length;   // un XML a medio escribir llega como { error } sin devices
   const solo = pestana && conDatos(pestana) ? categorias[pestana]! : null;
@@ -128,15 +136,21 @@ export function armar({ devices: combinados, stats, hostInfo, categorias, faltan
   });
 
   // Dentro del abanico: por tipo y, en cada tipo, por IP. El router va en medio de su grupo: es la base.
-  const equipos = ORDEN_ABANICO.flatMap((k) => {
+  let equipos = ORDEN_ABANICO.flatMap((k) => {
     const g = todos.filter((d) => d.tipo === k).sort((a, b) => ipNum(a.ip) - ipNum(b.ip));
     if (k === "router" && g.length > 2) g.splice(Math.floor((g.length - 1) / 2), 0, g.shift()!);
     return g;
   });
+  // Un grupo: sus equipos por urgencia (y por IP dentro de cada estado), de POR_PAGINA en POR_PAGINA.
+  // Si el grupo ya no tiene equipos (otra pestaña, otro escaneo), se arma la red entera.
+  const delGrupo = equipos.filter((d) => d.tipo === pedido).sort((a, b) => URGENCIA[a.estado] - URGENCIA[b.estado] || ipNum(a.ip) - ipNum(b.ip));
+  const grupo = delGrupo.length ? (pedido as Tipo) : null, paginas = Math.max(1, Math.ceil(delGrupo.length / POR_PAGINA)), pagina = grupo ? Math.min(Math.max(0, pag), paginas - 1) : 0;
+  if (grupo) equipos = delGrupo.slice(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA);
   equipos.forEach((d, i) => (d.i = i));
   const porIp = new Map(equipos.map((d) => [d.ip, d]));
 
-  const plan = generarPlan(devices).acciones.map((a) => ({ ...a, hosts: [...new Set(a.hosts.map((h) => porIp.get(h.ip)!))].filter(Boolean) }));
+  // En un grupo, el plan es el de sus equipos a la vista: una acción sin plumas en este abanico no se puede señalar.
+  const plan = generarPlan(grupo ? devices.filter((d) => porIp.has(d.ip)) : devices).acciones.map((a) => ({ ...a, hosts: [...new Set(a.hosts.map((h) => porIp.get(h.ip)!))].filter(Boolean) }));
   const cuenta = (e: EstadoEquipo) => equipos.filter((d) => d.estado === e).length;
 
   const carta = (id: string): Carta => {
@@ -155,9 +169,11 @@ export function armar({ devices: combinados, stats, hostInfo, categorias, faltan
     ETIQ: ADMIN_PORT_LABELS,
     SENSIBLES: PUERTOS_SENSIBLES,
     ESCANEOS: { mapear: cartas.filter((c) => c[3].group === "mapear"), detectar: cartas.filter((c) => c[3].group === "detectar") },
-    titulo: solo ? etiqueta(pestana!) : cuenta("riesgo") ? "Tu red está en riesgo" : cuenta("alerta") ? "Tu red está en alerta" : "Tu red no tiene pendientes",
-    pie: `${n} ${n === 1 ? "equipo" : "equipos"}.${solo ? (solo.scan_time?.fin ? ` Terminó el ${fechaCorta(solo.scan_time.fin)}, tardó ${solo.scan_time.duracion_str}.` : "") : ultimo}`,
+    titulo: grupo ? TIPOS[grupo].plural : solo ? etiqueta(pestana!) : cuenta("riesgo") ? "Tu red está en riesgo" : cuenta("alerta") ? "Tu red está en alerta" : "Tu red no tiene pendientes",
+    pie: grupo ? `${delGrupo.length} ${delGrupo.length === 1 ? "equipo" : "equipos"} en este grupo${paginas > 1 ? `, aquí ${n}` : ""}.${solo ? ` Solo lo que vio ${etiqueta(pestana!)}.` : ultimo}`
+      : `${n} ${n === 1 ? "equipo" : "equipos"}.${solo ? (solo.scan_time?.fin ? ` Terminó el ${fechaCorta(solo.scan_time.fin)}, tardó ${solo.scan_time.duracion_str}.` : "") : ultimo}`,
     pestanas,
     red: hostInfo?.ip ?? "",
+    grupo, pagina, paginas,
   };
 }

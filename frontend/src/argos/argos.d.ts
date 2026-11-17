@@ -7,6 +7,7 @@ declare module "*/argos/app.js" {
     cancelar(): void;
     pestana(id: string): void;   // "" vuelve a Todo
     instalar(herramienta: string): Promise<unknown>;
+    grupo(tipo: string | null, pagina: number): void;   // monta el abanico de un grupo (lente de grupos); null vuelve a la red entera
   }
   export interface Vista {
     escaneando(o: { grupo: string; nombre: string; t0: number; previo: number; previoTxt: string }): void;

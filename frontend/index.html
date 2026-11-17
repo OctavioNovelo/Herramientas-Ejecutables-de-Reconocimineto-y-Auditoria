@@ -21,6 +21,11 @@ El esqueleto de la interfaz de HERA (dirección visual Argos, ver docs/ui/ARGOS.
     <div id="esf-pie"></div>
     <div id="sin3d" role="region" aria-label="Casquetes de la red"><b>Este equipo no puede dibujar la esfera</b>Le falta aceleración gráfica (WebGL). Aquí ves la red como lista, por subred o tipo.<div id="sin3d-lista"></div></div>
   </div>
+  <!-- Los grupos: el abanico de abanicos, la otra lente de la red (src/argos/grupos.js). Una pluma por tipo de equipo. -->
+  <div id="vgrupos">
+    <canvas aria-hidden="true"></canvas>
+    <div class="capa" role="group" aria-label="Grupos de la red. Usa las flechas para recorrerlos y Enter para abrir uno."></div>
+  </div>
 
   <button id="inicio" data-ir="red" aria-label="HERA, volver al abanico"><img src="/src/assets/hera-logo.png" alt="" width="60" height="40"><span>HERA</span></button>
   <button id="volver" class="vano" data-ir="volver">Volver al abanico <kbd>Esc</kbd></button>
@@ -36,11 +41,12 @@ El esqueleto de la interfaz de HERA (dirección visual Argos, ver docs/ui/ARGOS.
       <span class="rot-l" aria-hidden="true">Ver como</span>
       <span class="par">
         <button data-lente="abanico" aria-pressed="true" aria-label="Ver como abanico"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M10 17L3 7M10 17L6.5 4.5M10 17V3.5M10 17L13.5 4.5M10 17L17 7"/></svg>Abanico</button>
-        <button data-lente="esfera" aria-pressed="false" aria-label="Ver como esfera"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7.2"/><path d="M10 2.8Q15 10 10 17.2M3.4 12.6Q10 9 16.6 12.6"/></svg>Esfera</button>
+        <button data-lente="grupos" aria-pressed="false" aria-label="Ver por grupos"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M10 17L4.5 7.5M10 17V5M10 17L15.5 7.5"/><circle cx="4" cy="6.5" r="2"/><circle cx="10" cy="3.8" r="2"/><circle cx="16" cy="6.5" r="2"/></svg>Grupos</button>
       </span>
       <kbd title="Tecla V: cambia de vista">V</kbd>
     </div>
     <p id="lente-nota"></p>
+    <p id="paginas" hidden><button class="vano" data-pag="-1">Anterior</button><span aria-live="polite"></span><button class="vano" data-pag="1">Siguiente</button></p>
   </div>
 
   <nav id="pestanas" aria-label="Ver los resultados de un solo escaneo"></nav>
