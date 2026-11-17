@@ -261,3 +261,16 @@ dt { color: var(--hueso-2); } dd { margin: 0; }
 #pers .casilla { display: flex; align-items: center; gap: 8px; margin-top: 12px; font: 15px var(--sans); color: var(--hueso); }
 #pers .casilla input { width: 18px; height: 18px; accent-color: var(--pavo); }
 #pers .base { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+/* desplegable "Más escaneos": sobre el abanico flota bajo su resumen; en la columna de espera cabe en 258px */
+.mas-esc { position: relative; }
+.mas-esc summary { cursor: pointer; list-style: none; min-height: 30px; padding: 4px 10px 4px 8px; border-radius: 3px 14px; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+.mas-esc summary::-webkit-details-marker { display: none; }
+.mas-esc summary::after { content: "▾"; font-size: 11px; }
+.mas-esc[open] summary::after { content: "▴"; }
+.mas-esc summary:hover { background: rgba(236,229,210,.07); }
+.mas-esc.activa summary { background: rgba(236,229,210,.12); box-shadow: inset 0 0 0 1px var(--hilo); }
+.mas-esc > div { display: grid; gap: 1px; margin-top: 2px; }
+#pestanas .mas-esc summary { background: rgba(7,13,26,.6); }
+#pestanas .mas-esc > div { position: absolute; z-index: 6; left: 0; min-width: 230px; padding: 4px; border-radius: 3px 14px; background: var(--tinta-2); box-shadow: inset 0 0 0 1px var(--hilo), 0 10px 30px -12px #000; }
+#pestanas .mas-esc .pest:not(.nueva) small { display: inline; }
+#esc-pestanas .mas-esc { max-width: 258px; }

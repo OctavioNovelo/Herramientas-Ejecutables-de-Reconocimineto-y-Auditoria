@@ -237,7 +237,11 @@ export function montar(H, puente) {
   // ---- diagnóstico (esquina superior izquierda) ----
   function diagnostico() {
     $("#diag h1").textContent = H.titulo; $("#diag .pie").textContent = H.pie;
-    $("#pestanas").innerHTML = $("#esc-pestanas").innerHTML = H.pestanas.length < 2 ? "" : '<p class="sub">Ver lo que encontró</p>' + H.pestanas.map((p) => `<button class="pest${p.nueva ? " nueva" : ""}" data-p="${p.id}" aria-pressed="${p.activa}">${esc(p.label)}<small>${p.nueva ? "nuevo" : esc(p.cuando)}</small></button>`).join("");
+    const pest = (p, det) => `<button class="pest${p.nueva ? " nueva" : ""}" data-p="${p.id}" aria-pressed="${p.activa}">${esc(p.label)}<small>${det ? `${esc(p.cuando)} · ${p.n} ${p.n === 1 ? "equipo" : "equipos"}` : p.nueva ? "nuevo" : esc(p.cuando)}</small></button>`;
+    // opción C: Todo + los 3 escaneos más recientes en fila; el resto en un desplegable (solo presentación, el filtro no cambia)
+    const escs = H.pestanas.slice(1).sort((a, b) => (b.fin || "").localeCompare(a.fin || "")), mas = escs.slice(3), act = mas.find((p) => p.activa);
+    $("#pestanas").innerHTML = $("#esc-pestanas").innerHTML = H.pestanas.length < 2 ? "" : '<p class="sub">Ver lo que encontró</p>' + [H.pestanas[0], ...escs.slice(0, 3)].map((p) => pest(p)).join("") +
+      (mas.length ? `<details class="mas-esc${act ? " activa" : ""}"><summary aria-label="Más escaneos, ${mas.length}${act ? `; activo: ${esc(act.label)}` : ""}">${act ? esc(act.label) : `Más escaneos (${mas.length})`}</summary><div>${mas.map((p) => pest(p, true)).join("")}</div></details>` : "");
     $("#cifras").innerHTML = ["riesgo", "alerta", "seguro"].map((e) => `<button class="cifra" data-e="${e}" aria-pressed="${S.filtro === e}">${glifo(e)}<b>${H.cuenta(e)}</b> ${ESTADO_TXT[e]}</button>`).join("");
   }
   $("#cifras").addEventListener("click", (ev) => { const b = ev.target.closest(".cifra"); if (!b) return; S.filtro = S.filtro === b.dataset.e ? null : b.dataset.e; diagnostico(); objetivos(); refEsfera(true); const el = $(`.cifra[data-e="${b.dataset.e}"]`); el && el.focus(); });

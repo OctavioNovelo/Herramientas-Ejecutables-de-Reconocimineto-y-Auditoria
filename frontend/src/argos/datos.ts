@@ -43,7 +43,7 @@ export interface Modelo {
   titulo: string;
   pie: string;
   red: string;
-  pestanas: { id: string; label: string; cuando: string; activa: boolean; nueva: boolean }[];   // "" es Todo; el resto, un escaneo con resultados
+  pestanas: { id: string; label: string; cuando: string; activa: boolean; nueva: boolean; fin?: string; n?: number }[];   // "" es Todo; el resto, un escaneo con resultados
   plano?: boolean;   // el webview no pinta CSS 3D: la rueda de cartas usa su respaldo en 2D
 }
 
@@ -146,7 +146,7 @@ export function armar({ devices: combinados, stats, hostInfo, categorias, faltan
   const cartas = ORDEN_CARTAS.map(carta);
   const etiqueta = (id: string) => SCAN_CATEGORIES.find((c) => c.id === id)!.label;
   const pestanas = [{ id: "", label: "Todo", cuando: "", activa: !solo, nueva: false },
-    ...ORDEN_CARTAS.filter(conDatos).map((id) => ({ id, label: etiqueta(id), cuando: fechaCorta(categorias[id]!.scan_time?.fin ?? ""), activa: !!solo && id === pestana, nueva: id === nueva }))];
+    ...ORDEN_CARTAS.filter(conDatos).map((id) => ({ id, label: etiqueta(id), cuando: fechaCorta(categorias[id]!.scan_time?.fin ?? ""), fin: categorias[id]!.scan_time?.fin ?? "", n: categorias[id]!.devices!.length, activa: !!solo && id === pestana, nueva: id === nueva }))];
   const n = equipos.length, ultimo = stats?.last_scan && stats.last_scan !== "N/A" ? ` Último escaneo, ${fechaCorta(stats.last_scan)}.` : "";
 
   return {
