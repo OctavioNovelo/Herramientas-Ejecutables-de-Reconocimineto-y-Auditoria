@@ -109,17 +109,42 @@ let gl = null, W = 1, Hh = 1, activa = false;
 const enc = { izq: 0, der: 0 }; // lo que el menú de Argos ocupa a cada lado: la esfera se encuadra en lo que queda
 const cam = { q: new T.Quaternion(), d: 5, shift: 0, rev: 0 };
 let meta = null, inercia = null, pend = false, cuadros = 0, ultimo = 0;
+// luz que recorre la esfera: un paso de ~2.6 s al aparecer y al abrir un casquete; en reposo la luz queda quieta y no hay bucle
+let luz = null, kLuz = -1;
+const LUZ0 = -0.65; // de dónde viene la luz en reposo (arriba a la izquierda)
+function barrer() { if (!reducido() && activa && gl) { luz = performance.now(); pedir(); } }
 
-const V_CAP = 'varying vec2 vUv; varying float vF; void main(){ vUv=uv; vec4 mv=modelViewMatrix*vec4(position,1.); vF=dot(normalize(normalMatrix*normal),normalize(-mv.xyz)); gl_Position=projectionMatrix*mv; }';
+// La óptica de la pluma (pluma.js) llevada a la esfera: la misma rampa iridiscente de cuatro tonos.
+const RAMPA = 'vec3 rampa(float t){ t=fract(t)*4.; vec3 a=vec3(.66,.43,.17),b=vec3(.07,.44,.31),c=vec3(.05,.47,.66),d=vec3(.33,.24,.66); float f=smoothstep(0.,1.,fract(t));' +
+  ' return t<1.?mix(a,b,f):t<2.?mix(b,c,f):t<3.?mix(c,d,f):mix(d,a,f); }\n';
+// uLuz: hacia dónde está la luz (vista). uBarr: la franja de luz que cruza la esfera (fuera de -1.5..1.5 no se ve).
+const V_CAP = 'uniform vec3 uCen; varying vec2 vUv; varying float vF; varying vec3 vN,vT,vV;\n' +
+  'void main(){ vUv=uv; vec4 mv=modelViewMatrix*vec4(position,1.); vN=normalize(normalMatrix*normal); vV=mv.xyz; vF=dot(vN,normalize(-mv.xyz));' +
+  ' vT=normalize(normalMatrix*(position-uCen*dot(position,uCen)+cross(uCen,vec3(.577))*1e-4)); gl_Position=projectionMatrix*mv; }';
 const F_CAP = [
-  'uniform vec3 uR,uA,uS,uFill; uniform float uPR,uPA,uTheta,uHover,uDim,uFoco; varying vec2 vUv; varying float vF;',
+  'uniform vec3 uR,uA,uS,uFill,uLuz; uniform float uPR,uPA,uTheta,uHover,uDim,uFoco,uIdx,uExt,uBarr; varying vec2 vUv; varying float vF; varying vec3 vN,vT,vV;',
+  RAMPA,
   'void main(){',
-  '  float r=vUv.x*uTheta, borde=uTheta-r, aa=fwidth(r)*1.3, a=vUv.y;',
+  '  float r=vUv.x*uTheta, borde=uTheta-r, aa=fwidth(r)*1.3, a=vUv.y, rn=min(vUv.x,1.);',
   // el borde es la composición del casquete: arco grueso en riesgo, medio en alerta, fino sin pendientes
   '  float esR=step(a,uPR), esA=(1.-esR)*step(a,uPA);',
   '  vec3 cb=mix(mix(uS,uA,esA),uR,esR); float w=mix(mix(.005,.011,esA),.019,esR);',
-  '  float banda=1.-smoothstep(w,w+aa,borde);',
-  '  vec3 col=uFill; float al=.34+.10*vUv.x+.16*uHover+.10*uFoco;',
+  '  float banda=(1.-smoothstep(w,w+aa,borde))*smoothstep(-aa,0.,borde);',
+  // barbas: hilos que salen del centro y se curvan hacia el borde, como el vano de una pluma; el número es entero para cerrar la vuelta
+  '  float nb=max(18.,floor(6.2832*sin(uTheta)/.026)), u=a*nb+2.4*rn*rn, id=floor(u), hz=fract(sin(id*127.1+uIdx*31.7)*43758.5);',
+  '  float fw=fwidth(u), hilo=1.-smoothstep(.09,.09+fw*1.5,abs(fract(u)-.5)); hilo=mix(hilo,.26,smoothstep(.22,.5,fw));', // de lejos las barbas se funden en un tejido
+  // iridiscencia: el color depende del ángulo con que se ve y de la luz, así cambia al girar
+  '  vec3 L=normalize(uLuz), V=normalize(-vV), Hv=normalize(L+V); float th=dot(normalize(vT),Hv), nl=dot(vN,L);',
+  '  float sheen=pow(max(0.,1.-th*th),22.)*smoothstep(-.1,.4,nl);', // reflejo anisótropo: la banda donde la barba cruza la luz
+  '  float fase=.70*vF+.34*rn+uIdx*.19+.20*nl+.06*hz;',
+  '  vec3 ir=rampa(fase)*1.55, ir2=rampa(fase+.22)*1.9;',
+  '  float xb=(vN.x*.8+vN.y*.6-uBarr)/.2, barr=exp(-xb*xb);',
+  '  float vis=smoothstep(.12,.65,rn)*(.55+.45*hz), bl=hilo*vis;',
+  '  vec3 col=mix(uFill,ir*.35,.28); float al=.30+.08*rn+.14*uHover+.08*uFoco;',
+  '  col+=ir*bl*.22+ir2*hilo*(sheen*.5+barr*.6)+vec3(.95,.9,.78)*barr*.05; al=max(al,bl*.38+hilo*(sheen+barr)*.32);',
+  '  if(borde<0.){', // fleco: solo las barbas pasan del borde, cada una con su largo
+  '    float fr=1.-smoothstep(0.,uExt*(.3+.7*hz),-borde);',
+  '    col=ir*.8+ir2*(sheen*.6+barr*.5); al=hilo*fr*fr*.6; }',
   '  col=mix(col,cb,banda); al=max(al,banda);',
   '  al*=mix(.16,1.,smoothstep(-.2,.2,vF))*mix(1.,.4,uDim);',
   '  gl_FragColor=vec4(col,al); }'].join('\n');
@@ -150,7 +175,10 @@ const F_OJO = [
   '  } else {', // alerta: almendra con punto. riesgo: almendra con diana
   '    float d=alm(p), dentro=1.-smoothstep(0.,aa,d), trazo=1.-smoothstep(0.,aa,abs(d)-t);',
   '    float pup=vEst<1.5 ? 1.-smoothstep(0.,aa,l-.19) : max(1.-smoothstep(0.,aa,abs(l-.29)-.05),1.-smoothstep(0.,aa,l-.11));',
-  '    col=mix(uTinta,ce,max(trazo,pup)); a=max(dentro*.92,trazo);',
+  '    vec2 q=p/vec2(AW,AH); float dome=sqrt(max(0.,1.-.8*dot(q,q)));', // globo: el centro brilla y el borde se oscurece
+  '    float cor=1.-smoothstep(.0,.5,length(p)); vec3 tono=ce*(.12+.88*dome*dome)*(.8+.4*cor);', // globo: centro iluminado, borde oscuro
+  '    tono+=uHueso*pow(max(0.,1.-length(p-vec2(-.3,.2))/.34),3.)*1.2;', // brillo de luz arriba a la izquierda
+  '    col=mix(uTinta,tono,max(trazo,pup)); a=max(dentro*.92,trazo);',
   '  }',
   '  if(vRes>.5){ float lp=length(vP), aro=1.-smoothstep(0.,aa/k,abs(lp-.94)-.028);', // aro: resaltado o elegido
   '    col=mix(col,vRes>1.5?uHueso:ce,aro); a=max(a,aro); }',
@@ -164,11 +192,15 @@ function iniciar3D() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   const scene = new T.Scene(), camera = new T.PerspectiveCamera(FOV, 1, 0.1, 40), globo = new T.Group();
   scene.add(globo);
-  // cáscara translúcida: solo el canto brilla, el centro deja ver el módem
+  // luz compartida por cáscara, casquetes e hilos: un solo valor que pintar() mueve
+  const FX = { uLuz: { value: new T.Vector3() }, uBarr: { value: -9 }, uPulso: { value: -9 } };
+  // cáscara translúcida: solo el canto brilla, iridiscente como el borde de una pluma; el centro deja ver el módem
   const cascara = new T.Mesh(new T.SphereGeometry(0.998, 96, 64), new T.ShaderMaterial({
-    transparent: true, depthWrite: false, uniforms: { uC: { value: new T.Color('#6f9fd0') } },
-    vertexShader: 'varying float vF; void main(){ vec4 mv=modelViewMatrix*vec4(position,1.); vF=dot(normalize(normalMatrix*normal),normalize(-mv.xyz)); gl_Position=projectionMatrix*mv; }',
-    fragmentShader: 'uniform vec3 uC; varying float vF; void main(){ float f=1.-abs(vF); gl_FragColor=vec4(uC,pow(f,3.2)*.6+.035); }' }));
+    transparent: true, depthWrite: false, uniforms: { uC: { value: new T.Color('#6f9fd0') }, uLuz: FX.uLuz, uBarr: FX.uBarr },
+    vertexShader: 'varying float vF; varying vec3 vN; void main(){ vec4 mv=modelViewMatrix*vec4(position,1.); vN=normalize(normalMatrix*normal); vF=dot(vN,normalize(-mv.xyz)); gl_Position=projectionMatrix*mv; }',
+    fragmentShader: 'uniform vec3 uC,uLuz; uniform float uBarr; varying float vF; varying vec3 vN;\n' + RAMPA +
+      'void main(){ float f=1.-abs(vF), nl=dot(vN,normalize(uLuz)), rim=pow(f,3.2), xb=(vN.x*.8+vN.y*.6-uBarr)/.2, barr=exp(-xb*xb);' +
+      ' vec3 c=mix(uC,rampa(.1+f*.8+.25*nl)*1.8,.7)*(1.+.6*max(nl,0.)+1.2*barr); gl_FragColor=vec4(c,rim*(.62+.5*barr)+.035); }' }));
   globo.add(cascara);
   // núcleo: el módem
   const lz = document.createElement('canvas'); lz.width = lz.height = 128;
@@ -178,7 +210,7 @@ function iniciar3D() {
   const halo = new T.Sprite(new T.SpriteMaterial({ map: new T.CanvasTexture(lz), blending: T.AdditiveBlending, depthWrite: false, depthTest: false }));
   halo.scale.set(0.62, 0.62, 1); halo.renderOrder = 1; globo.add(halo);
   const capas = new T.Group(); globo.add(capas);
-  gl = { renderer: renderer, scene: scene, camera: camera, globo: globo, capas: capas, ray: new T.Raycaster(), esfera: new T.Sphere(new T.Vector3(), 1.004) };
+  gl = { renderer: renderer, scene: scene, camera: camera, globo: globo, capas: capas, fx: FX, ray: new T.Raycaster(), esfera: new T.Sphere(new T.Vector3(), 1.004) };
 }
 
 function montar() {
@@ -186,12 +218,13 @@ function montar() {
   const cp = gl.capas, col = (k) => ({ value: new T.Color(COL[k]) });
   // casquetes
   caps.forEach((c) => {
-    const an = 22, seg = 120, pos = [], uv = [], idx = [], v = new T.Vector3();
-    for (let i = 0; i <= an; i++) for (let j = 0; j <= seg; j++) {
-      const ph = i / an * c.theta, az = j / seg * Math.PI * 2 + Math.PI / 2; // la composición arranca arriba
+    // más allá del borde, un fleco de barbas (cabe en el hueco que repartir() deja entre casquetes)
+    const an = 22, fl = 4, ext = Math.min(0.05, c.theta * 0.3), seg = 120, pos = [], uv = [], idx = [], v = new T.Vector3();
+    for (let i = 0; i <= an + fl; i++) for (let j = 0; j <= seg; j++) {
+      const ph = i <= an ? i / an * c.theta : c.theta + (i - an) / fl * ext, az = j / seg * Math.PI * 2 + Math.PI / 2; // la composición arranca arriba
       v.set(0, 0, 0).addScaledVector(c.c, Math.cos(ph)).addScaledVector(c.x, Math.sin(ph) * Math.cos(az)).addScaledVector(c.y, Math.sin(ph) * Math.sin(az));
-      pos.push(v.x, v.y, v.z); uv.push(i / an, j / seg);
-      if (i < an && j < seg) { const a = i * (seg + 1) + j, b = a + seg + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+      pos.push(v.x, v.y, v.z); uv.push(ph / c.theta, j / seg);
+      if (i < an + fl && j < seg) { const a = i * (seg + 1) + j, b = a + seg + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
     }
     const geo = new T.BufferGeometry();
     geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new T.Float32BufferAttribute(pos, 3));
@@ -200,14 +233,19 @@ function montar() {
     c.fr = c.riesgo ? Math.max(c.riesgo / c.n, 0.035) : 0; c.fa = c.alerta ? Math.max(c.alerta / c.n, 0.035) : 0;
     const mat = new T.ShaderMaterial({ transparent: true, depthWrite: false, side: T.DoubleSide, vertexShader: V_CAP, fragmentShader: F_CAP,
       uniforms: { uR: col('riesgo'), uA: col('alerta'), uS: col('seguro'), uFill: col('relleno'), uPR: { value: c.fr }, uPA: { value: c.fr + c.fa },
-        uTheta: { value: c.theta }, uHover: { value: 0 }, uDim: { value: 0 }, uFoco: { value: 0 } } });
+        uTheta: { value: c.theta }, uHover: { value: 0 }, uDim: { value: 0 }, uFoco: { value: 0 },
+        uCen: { value: c.c }, uIdx: { value: c.i }, uExt: { value: ext }, uLuz: gl.fx.uLuz, uBarr: gl.fx.uBarr } });
     c.malla = new T.Mesh(geo, mat); c.malla.renderOrder = 3; cp.add(c.malla);
   });
   // hilos: del módem a cada equipo. Es lo único que HERA sabe de la topología.
   const n = devs.length, lp = new Float32Array(n * 6);
   devs.forEach((d, i) => { lp[i * 6] = d.pos.x * 0.05; lp[i * 6 + 1] = d.pos.y * 0.05; lp[i * 6 + 2] = d.pos.z * 0.05; lp[i * 6 + 3] = d.pos.x; lp[i * 6 + 4] = d.pos.y; lp[i * 6 + 5] = d.pos.z; });
   const lg = new T.BufferGeometry(); lg.setAttribute('position', new T.BufferAttribute(lp, 3)); lg.setAttribute('color', new T.BufferAttribute(new Float32Array(n * 6), 3));
-  gl.hilos = new T.LineSegments(lg, new T.LineBasicMaterial({ vertexColors: true, transparent: true, blending: T.AdditiveBlending, depthWrite: false }));
+  // con la luz pasa un pulso del módem hacia afuera, del tono de cada hilo
+  gl.hilos = new T.LineSegments(lg, new T.ShaderMaterial({ vertexColors: true, transparent: true, blending: T.AdditiveBlending, depthWrite: false, uniforms: { uPulso: gl.fx.uPulso },
+    vertexShader: 'varying vec3 vC; varying float vR; void main(){ vC=color; vR=length(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
+    fragmentShader: 'uniform float uPulso; varying vec3 vC; varying float vR; void main(){ float xp=(vR-uPulso)/.07, p=exp(-xp*xp);' +
+      ' gl_FragColor=vec4(vC+vC/max(max(vC.r,vC.g),max(vC.b,.001))*p*.55,1.); }' }));
   gl.hilos.renderOrder = 2; cp.add(gl.hilos);
   // ojos: un solo dibujo instanciado
   const og = new T.InstancedBufferGeometry();
@@ -284,6 +322,8 @@ function avanzar(ahora) {
     inercia.v *= Math.exp(-dt / 170);
     if (inercia.v < 4e-5) inercia = null; else vivo = true;
   }
+  kLuz = luz == null ? -1 : (ahora - luz) / 2600;
+  if (kLuz >= 1) { luz = null; kLuz = -1; } else if (kLuz >= 0) vivo = true;
   return vivo;
 }
 // Dibuja solo bajo demanda y solo si la esfera está a la vista: sin animación pendiente no hay bucle.
@@ -298,6 +338,10 @@ function pintar() {
   const c = gl.camera;
   c.position.set(0, 0, cam.d); c.setViewOffset(W, Hh, cam.shift, 0, W, Hh); c.updateMatrixWorld();
   gl.globo.quaternion.copy(cam.q); gl.ojos.material.uniforms.uRev.value = cam.rev;
+  // la luz va a la derecha y vuelve; la franja cruza una vez; el pulso sale del módem por los hilos
+  const k = kLuz, ang = LUZ0 + (k < 0 ? 0 : 2 * Math.sin(k * Math.PI));
+  gl.fx.uLuz.value.set(Math.sin(ang), 0.5, Math.cos(ang));
+  gl.fx.uBarr.value = k < 0 ? -9 : -1.6 + 3.2 * k; gl.fx.uPulso.value = k < 0 ? -9 : k * 1.4;
   gl.renderer.render(gl.scene, c);
   superponer();
 }
@@ -510,7 +554,7 @@ function acercar(factor) {
 function alCambiar() { pintarPie(); marcar(); }
 function enfocar(c) {
   S.sel = null; S.hover = null; S.hoverCap = null; S.foco = c;
-  if (c) { ir({ q: qCara(c.c, c.y), d: dCap(c), shift: shift0(), rev: 1 }); op.decir(c.nombre + ': ' + plural(c.n, 'equipo', 'equipos') + ', ' + c.riesgo + ' en riesgo, ' + c.alerta + ' en alerta. Usa las flechas para recorrerlos.'); }
+  if (c) { ir({ q: qCara(c.c, c.y), d: dCap(c), shift: shift0(), rev: 1 }); barrer(); op.decir(c.nombre + ': ' + plural(c.n, 'equipo', 'equipos') + ', ' + c.riesgo + ' en riesgo, ' + c.alerta + ' en alerta. Usa las flechas para recorrerlos.'); }
   else { ir({ d: d0(), shift: shift0(), rev: 0 }); op.decir('Esfera completa.'); }
   alCambiar();
 }
@@ -550,7 +594,7 @@ const api = {
     if (on === activa) return; activa = on; if (!on || !gl) return;
     medir();
     if (!S.foco && !reducido()) { cam.d = d0() * 1.16; ir({ d: d0() }, 900); }
-    pedir();
+    barrer(); pedir();
   },
   // el menú cambió de sitio (red, plan): se reencuadra en el hueco libre
   encuadrar(izq, der) {
