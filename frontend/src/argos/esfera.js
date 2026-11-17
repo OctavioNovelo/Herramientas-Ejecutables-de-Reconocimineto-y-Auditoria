@@ -130,21 +130,7 @@ const F_CAP = [
   '  float esR=step(a,uPR), esA=(1.-esR)*step(a,uPA);',
   '  vec3 cb=mix(mix(uS,uA,esA),uR,esR); float w=mix(mix(.005,.011,esA),.019,esR);',
   '  float banda=(1.-smoothstep(w,w+aa,borde))*smoothstep(-aa,0.,borde);',
-  // barbas: hilos que salen del centro y se curvan hacia el borde, como el vano de una pluma; el número es entero para cerrar la vuelta
-  '  float nb=max(18.,floor(6.2832*sin(uTheta)/.026)), u=a*nb+2.4*rn*rn, id=floor(u), hz=fract(sin(id*127.1+uIdx*31.7)*43758.5);',
-  '  float fw=fwidth(u), hilo=1.-smoothstep(.09,.09+fw*1.5,abs(fract(u)-.5)); hilo=mix(hilo,.26,smoothstep(.22,.5,fw));', // de lejos las barbas se funden en un tejido
-  // iridiscencia: el color depende del ángulo con que se ve y de la luz, así cambia al girar
-  '  vec3 L=normalize(uLuz), V=normalize(-vV), Hv=normalize(L+V); float th=dot(normalize(vT),Hv), nl=dot(vN,L);',
-  '  float sheen=pow(max(0.,1.-th*th),22.)*smoothstep(-.1,.4,nl);', // reflejo anisótropo: la banda donde la barba cruza la luz
-  '  float fase=.70*vF+.34*rn+uIdx*.19+.20*nl+.06*hz;',
-  '  vec3 ir=rampa(fase)*1.55, ir2=rampa(fase+.22)*1.9;',
-  '  float xb=(vN.x*.8+vN.y*.6-uBarr)/.2, barr=exp(-xb*xb);',
-  '  float vis=smoothstep(.12,.65,rn)*(.55+.45*hz), bl=hilo*vis;',
-  '  vec3 col=mix(uFill,ir*.35,.28); float al=.30+.08*rn+.14*uHover+.08*uFoco;',
-  '  col+=ir*bl*.22+ir2*hilo*(sheen*.5+barr*.6)+vec3(.95,.9,.78)*barr*.05; al=max(al,bl*.38+hilo*(sheen+barr)*.32);',
-  '  if(borde<0.){', // fleco: solo las barbas pasan del borde, cada una con su largo
-  '    float fr=1.-smoothstep(0.,uExt*(.3+.7*hz),-borde);',
-  '    col=ir*.8+ir2*(sheen*.6+barr*.5); al=hilo*fr*fr*.6; }',
+  '  vec3 col=uFill; float al=.30+.08*rn+.14*uHover+.08*uFoco;',
   '  col=mix(col,cb,banda); al=max(al,banda);',
   '  al*=mix(.16,1.,smoothstep(-.2,.2,vF))*mix(1.,.4,uDim);',
   '  gl_FragColor=vec4(col,al); }'].join('\n');
@@ -163,7 +149,7 @@ const V_OJO = [
   '  vP=position.xy; vEst=aDat.y; vRes=res; vAl=vis*cara*mix(1.,.13,aFx.y*(1.-step(.5,res)));',
   '  gl_Position=vAl<.01?vec4(2.,2.,2.,1.):projectionMatrix*c; }'].join('\n');
 const F_OJO = [
-  'uniform vec3 uR,uA,uS,uTinta,uHueso; varying vec2 vP; varying float vEst,vRes,vAl;',
+  'uniform vec3 uR,uA,uS,uTinta,uHueso,uLuz; varying vec2 vP; varying float vEst,vRes,vAl;',
   'const float AW=.92, AH=.47;',
   'float alm(vec2 p){ float R=(AW*AW+AH*AH)/(2.*AH), o=R-AH; return max(length(p-vec2(0.,-o))-R,length(p-vec2(0.,o))-R); }',
   'void main(){',
@@ -175,10 +161,13 @@ const F_OJO = [
   '  } else {', // alerta: almendra con punto. riesgo: almendra con diana
   '    float d=alm(p), dentro=1.-smoothstep(0.,aa,d), trazo=1.-smoothstep(0.,aa,abs(d)-t);',
   '    float pup=vEst<1.5 ? 1.-smoothstep(0.,aa,l-.19) : max(1.-smoothstep(0.,aa,abs(l-.29)-.05),1.-smoothstep(0.,aa,l-.11));',
-  '    vec2 q=p/vec2(AW,AH); float dome=sqrt(max(0.,1.-.8*dot(q,q)));', // globo: el centro brilla y el borde se oscurece
-  '    float cor=1.-smoothstep(.0,.5,length(p)); vec3 tono=ce*(.12+.88*dome*dome)*(.8+.4*cor);', // globo: centro iluminado, borde oscuro
-  '    tono+=uHueso*pow(max(0.,1.-length(p-vec2(-.3,.2))/.34),3.)*1.2;', // brillo de luz arriba a la izquierda
-  '    col=mix(uTinta,tono,max(trazo,pup)); a=max(dentro*.92,trazo);',
+    '    vec2 q=p/vec2(AW,AH); float zz=sqrt(max(0.,1.-min(1.,.6*dot(q,q))));',
+    '    vec3 N=normalize(vec3(q.x*.9,q.y*.9,zz)), Lh=normalize(uLuz), Hv=normalize(Lh+vec3(0.,0.,1.));',
+    '    float dif=max(dot(N,Lh),0.), spe=pow(max(dot(N,Hv),0.),40.);',
+    '    vec3 cuerpo=uTinta*.6+uHueso*(.04+.22*dif)+uHueso*spe*.9;',
+    '    vec3 iris=ce*(.3+.8*dif)+uHueso*spe*.6;',
+    '    vec3 base=mix(cuerpo,iris,1.-smoothstep(0.,aa+.02,length(p)-.3));',
+    '    col=mix(base,ce,trazo); col=mix(col,uTinta,pup); a=max(dentro*.92,trazo);',
   '  }',
   '  if(vRes>.5){ float lp=length(vP), aro=1.-smoothstep(0.,aa/k,abs(lp-.94)-.028);', // aro: resaltado o elegido
   '    col=mix(col,vRes>1.5?uHueso:ce,aro); a=max(a,aro); }',
@@ -219,7 +208,7 @@ function montar() {
   // casquetes
   caps.forEach((c) => {
     // más allá del borde, un fleco de barbas (cabe en el hueco que repartir() deja entre casquetes)
-    const an = 22, fl = 4, ext = Math.min(0.05, c.theta * 0.3), seg = 120, pos = [], uv = [], idx = [], v = new T.Vector3();
+    const an = 22, fl = 0, ext = 0, seg = 120, pos = [], uv = [], idx = [], v = new T.Vector3();
     for (let i = 0; i <= an + fl; i++) for (let j = 0; j <= seg; j++) {
       const ph = i <= an ? i / an * c.theta : c.theta + (i - an) / fl * ext, az = j / seg * Math.PI * 2 + Math.PI / 2; // la composición arranca arriba
       v.set(0, 0, 0).addScaledVector(c.c, Math.cos(ph)).addScaledVector(c.x, Math.sin(ph) * Math.cos(az)).addScaledVector(c.y, Math.sin(ph) * Math.sin(az));
@@ -255,7 +244,7 @@ function montar() {
   og.setAttribute('aPos', new T.InstancedBufferAttribute(aPos, 3)); og.setAttribute('aDat', new T.InstancedBufferAttribute(aDat, 3));
   og.setAttribute('aFx', new T.InstancedBufferAttribute(new Float32Array(n * 2), 2)); og.instanceCount = n;
   gl.ojos = new T.Mesh(og, new T.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: false, vertexShader: V_OJO, fragmentShader: F_OJO,
-    uniforms: { uR: col('riesgo'), uA: col('alerta'), uS: col('seguro'), uTinta: col('tinta'), uHueso: col('hueso'), uFoco: { value: -1 }, uRev: { value: 0 } } }));
+    uniforms: { uR: col('riesgo'), uA: col('alerta'), uS: col('seguro'), uTinta: col('tinta'), uHueso: col('hueso'), uFoco: { value: -1 }, uRev: { value: 0 }, uLuz: gl.fx.uLuz } }));
   gl.ojos.frustumCulled = false; gl.ojos.renderOrder = 4; cp.add(gl.ojos);
 }
 
