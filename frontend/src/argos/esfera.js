@@ -268,7 +268,7 @@ function marcar() {
     const res = !visto(d.cap) ? 0 : d === S.sel ? 2 : (S.res.has(d) || d === S.hover || (d.cap === S.hoverCap && d.cap !== S.foco)) ? 1 : 0, pasa = coincide(d);
     fx.array[i * 2] = res; fx.array[i * 2 + 1] = pasa ? 0 : 1;
     let a = 0.12 * aten, b = 0.012 * aten;
-    if (res) { c.set(res === 2 ? COL.hueso : COL[d.e.estado]); a = b = 0.9; }
+    if (res) { c.set(res === 2 ? COL.hueso : COL[d.e.estado]); const solo = !(S.res.has(d) || d === S.hover || d === S.sel); a = b = solo ? 0.9 * aten : 0.9; } // solo el casquete bajo el puntero: sus hilos también se aclaran
     else { c.set(COL.bronce); const k = !visto(d.cap) ? 0.06 : !pasa ? 0.15 : S.foco ? (d.cap === S.foco ? 1.5 : 0.3) : 1; a *= k; b *= k; }
     lc.array[i * 6] = c.r * a; lc.array[i * 6 + 1] = c.g * a; lc.array[i * 6 + 2] = c.b * a;
     lc.array[i * 6 + 3] = c.r * b; lc.array[i * 6 + 4] = c.g * b; lc.array[i * 6 + 5] = c.b * b;
@@ -448,11 +448,11 @@ function superponer() {
     todas = S.foco.tam * 2 * ppu > 58;
     S.foco.devs.forEach((d) => { if (!coincide(d)) return;
       const pri = d === S.hover ? -1 : d === S.sel ? 0 : S.res.has(d) ? 1 : d.e.estado === 'riesgo' ? 2 : d.e.estado === 'alerta' ? 3 : 4;
-      mete(d, pri < 4 || todas ? pri : -1); });
+      mete(d, -1); }); // nombres de equipo solo con el puntero encima (la pista); sin nombres fijos
   }
   if (S.sel && !(dentro && S.sel.cap === S.foco)) mete(S.sel, 0);
   // muchos resaltados a la vez (una acción del plan que toca a decenas): bastan los aros, sin sembrar nombres
-  if (S.res.size <= 12) S.res.forEach((d) => { if (d !== S.hover && d !== S.sel && !(dentro && d.cap === S.foco)) mete(d, 1); });
+  if (S.res.size <= 12) S.res.forEach((d) => { if (d !== S.hover && d !== S.sel && !(dentro && d.cap === S.foco)) mete(d, -1); });
   cand.sort((a, b) => a.pri - b.pri);
   let usados = 0;
   for (let i = 0; i < cand.length && usados < fondo.length; i++) {
