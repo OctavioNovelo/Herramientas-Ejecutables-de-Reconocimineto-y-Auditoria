@@ -60,7 +60,7 @@ label { display: block; font: italic 14px var(--serif); color: var(--hueso-2); }
 .g { width: 18px; height: 18px; flex: none; vertical-align: -4px; }
 .g-riesgo { color: var(--brasa); } .g-alerta { color: var(--ambar); } .g-seguro { color: var(--hueso-2); }
 
-#inicio { position: absolute; left: 24px; top: 18px; display: flex; align-items: center; gap: 10px; padding: 4px 8px 4px 2px; z-index: 5; }
+#inicio { position: absolute; left: 24px; top: 0px; display: flex; align-items: center; gap: 10px; padding: 4px 8px 4px 2px; z-index: 5; }
 #inicio span { font: 600 22px var(--serif); letter-spacing: .08em; }
 #volver { right: 40px; bottom: 24px; z-index: 5; }
 [data-vista="equipo"] #volver { right: calc(100% - 224px); bottom: auto; left: auto; top: 74px; }   /* en el hueco a la izquierda de Pluma anterior (#otros, left 232px): borde derecho a 8px de él */
