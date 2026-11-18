@@ -16,7 +16,7 @@
 #lente #paginas button[data-pag="-1"] { order: 1; }
 #lente .fila { order: 2; }
 #lente #paginas button[data-pag="1"] { order: 3; }
-#lente #paginas span { order: 4; font: 500 13px var(--mono); color: var(--hueso-2); white-space: nowrap; }
+#lente #paginas span { position: absolute; left: 50%; top: -15px; translate: -50% 0; font: 500 11px/1 var(--mono); color: var(--hueso-2); white-space: nowrap; pointer-events: none; }   /* #/# pequeño, sobre el conmutador */
 #lente button { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 4px 13px 4px 10px; border-radius: 2px 12px; color: var(--hueso-2); font-weight: 500; white-space: nowrap; transition: background-color .15s, color .15s, box-shadow .15s; }
 #lente button svg { width: 18px; height: 18px; flex: none; }
 #lente button:hover { color: var(--hueso); background: rgba(236,229,210,.07); }

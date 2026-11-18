@@ -106,7 +106,7 @@ export function montar(H, puente) {
     $$("#lente button[data-lente]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.lente === S.lente));
     $("#lente [data-lente=\"abanico\"]").title = !gru && G >= 0 ? `Aquí van los ${NV} equipos más urgentes de ${TODOS.length}. Por grupos los ves todos.` : "";
     const pg = $("#paginas"); pg.hidden = !(H.paginas > 1);
-    if (!pg.hidden) { pg.querySelector("span").textContent = `Página ${H.pagina + 1} de ${H.paginas}`; pg.querySelector('[data-pag="-1"]').disabled = !H.pagina; pg.querySelector('[data-pag="1"]').disabled = H.pagina >= H.paginas - 1; }
+    if (!pg.hidden) { pg.querySelector("span").textContent = `${H.pagina + 1}/${H.paginas}`; pg.querySelector("span").title = `Página ${H.pagina + 1} de ${H.paginas}`; pg.querySelector('[data-pag="-1"]').disabled = !H.pagina; pg.querySelector('[data-pag="1"]').disabled = H.pagina >= H.paginas - 1; }
   }
   function lente(l) {
     if (l === S.lente || S.scan || (S.vista !== "red" && S.vista !== "plan")) return;
