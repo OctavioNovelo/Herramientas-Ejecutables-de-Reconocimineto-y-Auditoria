@@ -104,7 +104,7 @@ export function montar(H, puente) {
     $("#inicio").setAttribute("aria-label", "HERA, volver " + (gru ? "a los grupos" : "al abanico"));
     $("#plan-sub").textContent = "Lo que Argos vio, por urgencia. Pasa por una acción y se encienden sus " + (gru ? "grupos." : "plumas.");
     $$("#lente button[data-lente]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.lente === S.lente));
-    $("#lente-nota").textContent = !gru && G >= 0 ? `Aquí van los ${NV} equipos más urgentes de ${TODOS.length}. Por grupos los ves todos.` : "";
+    $("#lente [data-lente=\"abanico\"]").title = !gru && G >= 0 ? `Aquí van los ${NV} equipos más urgentes de ${TODOS.length}. Por grupos los ves todos.` : "";
     const pg = $("#paginas"); pg.hidden = !(H.paginas > 1);
     if (!pg.hidden) { pg.querySelector("span").textContent = `Página ${H.pagina + 1} de ${H.paginas}`; pg.querySelector('[data-pag="-1"]').disabled = !H.pagina; pg.querySelector('[data-pag="1"]').disabled = H.pagina >= H.paginas - 1; }
   }
