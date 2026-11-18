@@ -257,7 +257,7 @@ export function montar(H, puente) {
   $("#ver-plan").textContent = `Ver el plan, ${H.plan.length} ${H.plan.length === 1 ? "acción" : "acciones"}`; $("#ver-plan").style.display = H.plan.length ? "" : "none";
   // Volver (dentro de un grupo) va justo debajo de "Ver el plan": medimos el panel, que cambia de alto con sus acciones
   const bajoUrgente = () => document.documentElement.style.setProperty("--urg-fin", `${$("#urgente").offsetTop + $("#urgente").offsetHeight + 12}px`);
-  bajoUrgente(); addEventListener("resize", bajoUrgente);
+  bajoUrgente(); addEventListener("resize", bajoUrgente); document.fonts?.ready.then(bajoUrgente);   // la fuente serif cambia los saltos de línea del panel
   function pintarPlan() { const v = accionViva(); $$(".accion").forEach((b) => { const on = v === H.plan[+b.dataset.a]; b.classList.toggle("viva", on); if (b.hasAttribute("aria-expanded")) b.setAttribute("aria-expanded", on); }); }
   function senalar(a) { if (S.accion === a) return; S.accion = a; objetivos(); pintarPlan(); refGrupos(); }
   for (const cont of [$("#plan"), $("#urgente")]) {
