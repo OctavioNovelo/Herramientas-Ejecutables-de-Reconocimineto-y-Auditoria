@@ -4,11 +4,25 @@ import * as T from "three";
 
 // nPlumas: cuántos equipos hay. Los valores por pluma viajan como uniformes (3 vec4 por pluma).
 // shortcut: tope práctico de unas 300 plumas por el límite de uniformes del vertex shader; con redes mayores, pasarlos por textura.
+// Cada lienzo guarda su renderer y una escena por número de plumas: al cambiar de pestaña se remonta la vista, y crear un
+// contexto WebGL y compilar los shaders cada vez atoraba la interfaz. shortcut: las escenas no se sueltan; son pocas (una por pestaña distinta).
+const hechos = new WeakMap();
 export function crear(canvas, nPlumas) {
+  let c = hechos.get(canvas);
+  if (!c) hechos.set(canvas, (c = { renderer: nuevoRenderer(canvas), porN: new Map() }));
+  if (!c.porN.has(nPlumas)) c.porN.set(nPlumas, construir(c.renderer, nPlumas));
+  return c.porN.get(nPlumas);
+}
+function nuevoRenderer(canvas) {
+  try { const r = new T.WebGLRenderer({ canvas, antialias: true, alpha: true, premultipliedAlpha: true }); r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); return r; }
+  catch (e) { console.warn("Sin WebGL: el abanico no se dibuja.", e); return null; }
+}
+function construir(renderer, nPlumas) {
   const N = Math.max(1, nPlumas), NB = 56, EYE_U = 0.9, LREF = 760;
+  const NU = Math.ceil(N / 32) * 32;   // el tamaño del array va por tramos: el mismo shader (ya compilado) sirve a pestañas con distinto número de equipos
   const COMUN = `
     precision highp float;
-    uniform vec4 uA[${N}]; uniform vec4 uB[${N}]; uniform vec4 uC[${N}];
+    uniform vec4 uA[${NU}]; uniform vec4 uB[${NU}]; uniform vec4 uC[${NU}];
     uniform vec2 uRes; uniform float uTime; uniform vec2 uLight; uniform float uEyeR;
     vec3 rampa(float t){
       t = fract(t) * 4.0;
@@ -192,9 +206,6 @@ export function crear(canvas, nPlumas) {
       vec3 c = mix(vec3(0.03,0.16,0.20), vec3(0.11,0.08,0.24), b) * (0.16 * exp(-d*1.6));
       gl_FragColor = vec4(c, 0.0); }`;
 
-    let renderer = null;
-    try { renderer = new T.WebGLRenderer({ canvas, antialias: true, alpha: true, premultipliedAlpha: true }); renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); }
-    catch (e) { console.warn("Sin WebGL: el abanico no se dibuja.", e); }
     const scene = new T.Scene(), cam = new T.Camera();
     const U = {
       uA: { value: new Float32Array(N * 4) }, uB: { value: new Float32Array(N * 4) }, uC: { value: new Float32Array(N * 4) },
@@ -236,6 +247,6 @@ export function crear(canvas, nPlumas) {
       sinGL: !renderer,
       resize(w, h) { renderer && renderer.setSize(w, h, false); U.uRes.value.set(w, h); },
       render() { renderer && renderer.render(scene, cam); },
-      destruir() { if (renderer) { renderer.dispose(); renderer.forceContextLoss(); } },
+      destruir() {},   // el renderer y la escena quedan para la próxima montura (ver crear)
     };
 }

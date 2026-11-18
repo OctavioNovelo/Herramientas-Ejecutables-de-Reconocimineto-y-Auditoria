@@ -113,7 +113,8 @@ export function iniciar(H, op) {
   escucha("pointermove", (ev) => { luzX = ev.clientX; luzY = ev.clientY; ultimoMov = performance.now(); });
   function cuadro(t) {
     const dt = Math.min(0.034, (t - tAnt) / 1000 || 0.016); tAnt = t;
-    if (on || !quieto || !pintado) {
+    const fija = calma && quieto && Math.abs(luzX - lx) + Math.abs(luzY - ly) < 0.5;   // sin movimiento y sin cambios no hay nada que repintar
+    if ((on && !fija) || !quieto || !pintado) {
       const estaba = quieto;
       if (!calma) { paso(dt / 2); paso(dt / 2); } else { val.set(tgt); quieto = true; }
       subir();

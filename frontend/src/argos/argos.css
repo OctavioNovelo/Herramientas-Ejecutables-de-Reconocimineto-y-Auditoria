@@ -38,6 +38,7 @@ section, nav, #volver, #grupos { position: absolute; opacity: 0; visibility: hid
 [data-vista="plan"] :is(#plan, #volver), [data-vista="equipo"] :is(#ficha, #volver), [data-vista="lanzar"] :is(#lanzar, #volver),
 [data-vista="escaneo"] :is(#escaneo, #grupos), [data-vista="vacio"] #vacio { opacity: 1; visibility: visible; transition: opacity .5s var(--sale) .18s, visibility 0s; }
 [data-cancel] #escaneo { opacity: .35; }
+.remonta *, .remonta *::before, .remonta *::after { transition: none !important; }   /* main.ts, al remontar: la vista nueva aparece ya en su sitio */
 
 /* el vano: el control con forma de lámina de pluma */
 .vano { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 18px; border-radius: 3px 18px; box-shadow: inset 0 0 0 1px var(--hilo); background: rgba(13,24,48,.55); font-weight: 500; white-space: nowrap; transition: background-color .15s, box-shadow .15s, scale .12s; }
@@ -62,6 +63,7 @@ label { display: block; font: italic 14px var(--serif); color: var(--hueso-2); }
 #inicio { position: absolute; left: 24px; top: 18px; display: flex; align-items: center; gap: 10px; padding: 4px 8px 4px 2px; z-index: 5; }
 #inicio span { font: 600 22px var(--serif); letter-spacing: .08em; }
 #volver { right: 40px; bottom: 24px; z-index: 5; }
+[data-vista="equipo"] #volver { right: calc(100% - 224px); bottom: auto; left: auto; top: 74px; }   /* en el hueco a la izquierda de Pluma anterior (#otros, left 232px): borde derecho a 8px de él */
 
 #diag { left: 28px; top: 86px; width: 250px; }
 #cifras { display: grid; gap: 2px; margin: 14px 0 10px -8px; }
@@ -158,8 +160,10 @@ label { display: block; font: italic 14px var(--serif); color: var(--hueso-2); }
 .quien { flex: none; display: flex; align-items: center; gap: 2px; font-size: 12.5px; color: var(--hueso-2); }
 .quien em { font-style: normal; margin-left: 5px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .quien .g { width: 15px; height: 15px; }
-.mas { font-size: 14px; color: #d3cfbf; overflow: hidden; max-height: 0; transition: max-height .35s var(--sale); }
-.accion.viva + .mas, .mas:focus-within { max-height: 260px; }
+/* se abre a su alto real (0fr a 1fr): con max-height el cierre esperaba en vacío y lo más largo se cortaba */
+.mas { font-size: 14px; color: #d3cfbf; display: grid; grid-template-rows: 0fr; transition: grid-template-rows .3s var(--sale); }
+.mas > div { min-height: 0; overflow: hidden; }
+.accion.viva + .mas, .mas:focus-within { grid-template-rows: 1fr; }
 .mas p { max-width: 62ch; text-wrap: pretty; }
 .mas ol { padding-left: 20px; margin: 4px 0 6px; }
 .mas .hosts { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 2px 10px; }
@@ -251,7 +255,7 @@ dt { color: var(--hueso-2); } dd { margin: 0; }
 #aviso { position: absolute; left: 50%; top: 28px; max-width: min(70ch, 80vw); z-index: 6; translate: -50% -8px; padding: 8px 18px; border-radius: 3px 18px; background: var(--tinta-2); box-shadow: inset 0 0 0 1px var(--hilo), 0 10px 30px -12px #000; opacity: 0; transition: opacity .25s, translate .25s var(--sale); pointer-events: none; }
 #aviso.ver { opacity: 1; translate: -50% 0; }
 
-@media (prefers-reduced-motion: reduce) { *, *::before { transition-duration: 0s !important; transition-delay: 0s !important; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0s !important; transition-delay: 0s !important; animation-duration: 0s !important; animation-delay: 0s !important; } }
 @media (max-height: 760px) { h1 { font-size: 26px; } #diag, #escaneo { top: 74px; } #plan .accion .t { font-size: 15.5px; } }
 @media (max-width: 1400px) { #urgente { width: 236px; } #urgente li:nth-child(3) { display: none; } #urgente .accion .t { font-size: 15px; } }
 [tabindex="-1"]:focus-visible { outline: none; }

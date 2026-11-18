@@ -242,7 +242,7 @@ export function montar(H, puente) {
       (mas.length ? `<details class="mas-esc${act ? " activa" : ""}"><summary aria-label="Más escaneos, ${mas.length}${act ? `; activo: ${esc(act.label)}` : ""}">${act ? esc(act.label) : `Más escaneos (${mas.length})`}</summary><div>${mas.map((p) => pest(p, true)).join("")}</div></details>` : "");
     $("#cifras").innerHTML = ["riesgo", "alerta", "seguro"].map((e) => `<button class="cifra" data-e="${e}" aria-pressed="${S.filtro === e}">${glifo(e)}<b>${H.cuenta(e)}</b> ${ESTADO_TXT[e]}</button>`).join("");
   }
-  $("#cifras").addEventListener("click", (ev) => { const b = ev.target.closest(".cifra"); if (!b) return; S.filtro = S.filtro === b.dataset.e ? null : b.dataset.e; diagnostico(); objetivos(); refGrupos(); const el = $(`.cifra[data-e="${b.dataset.e}"]`); el && el.focus(); });
+  $("#cifras").addEventListener("click", (ev) => { const b = ev.target.closest(".cifra"); if (!b) return; S.filtro = S.filtro === b.dataset.e ? null : b.dataset.e; $$(".cifra").forEach((c) => c.setAttribute("aria-pressed", S.filtro === c.dataset.e)); objetivos(); refGrupos(); });   // sin rehacer el HTML: el botón conserva el foco
   // en el panel del escaneo la pestaña activa también se puede elegir: saca de la espera y deja el escaneo en segundo plano
   addEventListener("click", (ev) => { const b = ev.target.closest(".pest"); if (b && (b.getAttribute("aria-pressed") !== "true" || S.scan) && !(S.scan && S.scan.rev)) puente.pestana(b.dataset.p); });
   const campo = $("#q");
@@ -251,7 +251,7 @@ export function montar(H, puente) {
 
   // ---- plan ----
   const filaAccion = (a, n) => `<li><button class="accion" data-a="${n}" aria-expanded="false"><span class="t">${esc(a.titulo)}</span><span class="quien">${a.hosts.slice(0, 6).map((d) => glifo(d.estado)).join("")}<em>${a.hosts.length === 1 ? esc(a.hosts[0].nombre) : a.hosts.length + " equipos"}</em></span></button>
-    <div class="mas"><p>${esc(a.motivo)}</p><ol>${a.pasos.map((p) => `<li>${esc(p)}</li>`).join("")}</ol><p class="hosts">${a.hosts.slice(0, 8).map((d) => `<button class="hilo" data-ip="${esc(d.ip)}">${esc(d.nombre)} <span class="ip">${esc(d.ip)}</span></button>`).join("")}${a.hosts.length > 8 ? `<em>y ${a.hosts.length - 8} más</em>` : ""}</p></div></li>`;   // por IP: con red grande el equipo puede no tener pluma
+    <div class="mas"><div><p>${esc(a.motivo)}</p><ol>${a.pasos.map((p) => `<li>${esc(p)}</li>`).join("")}</ol><p class="hosts">${a.hosts.slice(0, 8).map((d) => `<button class="hilo" data-ip="${esc(d.ip)}">${esc(d.nombre)} <span class="ip">${esc(d.ip)}</span></button>`).join("")}${a.hosts.length > 8 ? `<em>y ${a.hosts.length - 8} más</em>` : ""}</p></div></div></li>`;   // por IP: con red grande el equipo puede no tener pluma
   $("#plan-lista").innerHTML = ["riesgo", "alerta", "info"].map((p) => { const l = H.plan.map((a, n) => [a, n]).filter(([a]) => a.prioridad === p); return `<h3>${PRIO_TXT[p]} <b>${l.length}</b></h3><ul>${l.map(([a, n]) => filaAccion(a, n)).join("")}</ul>`; }).join("");
   $("#urgente-lista").innerHTML = H.plan.slice(0, 3).map((a, n) => `<li><button class="accion corta" data-a="${n}"><span class="t">${esc(a.titulo)}</span></button></li>`).join("") || '<li class="sub">Nada pendiente.</li>';
   $("#ver-plan").textContent = `Ver el plan, ${H.plan.length} ${H.plan.length === 1 ? "acción" : "acciones"}`; $("#ver-plan").style.display = H.plan.length ? "" : "none";
@@ -365,7 +365,7 @@ export function montar(H, puente) {
     $("#cancelar").style.display = "";
     vivo.textContent = "Escaneo en curso. Puedes cancelarlo.";
     cajas();   // el panel del escaneo cambió de alto con su texto
-    setTimeout(() => { if (S.scan) est.fill(0); }, 500);
+    setTimeout(() => { if (S.scan) { est.fill(0); quieto = false; } }, 500);   // quieto: que el cuadro vuelva a pintar los ojos
   }
   // El escaneo sigue mientras se miran otros resultados: la vista es la normal y una ficha abajo lleva el reloj y Cancelar.
   function enCurso(o) { S.curso = { t0: o.t0, s: -1 }; $("#curso-t").textContent = (o.grupo === "Detectar" ? "Detectando" : "Mapeando") + ": " + o.nombre.toLowerCase(); $("#curso").hidden = false; }
@@ -457,6 +457,7 @@ export function montar(H, puente) {
   }
   function partes() {     // qué parte está bajo el cursor o el foco: se separa un poco
     const U = gl.U, p = S.vista === "equipo" ? S.parte : null;
+    quieto = false;   // cambian uniformes sin muelle: hay que pintar
     U.uSlotU.value.fill(-1); U.uSlotD.value.fill(-1);
     if (S.vista === "equipo") puertos.forEach((q, k) => { U.uSlotD.value[q.j] = q.f + (p === "p" + k ? 10 : 0); });
     U.uRings.value.y = p && p[0] === "a" ? +p.slice(1) : p === "pupila" ? 99 : -1;
@@ -555,10 +556,11 @@ export function montar(H, puente) {
     // la luz deriva sola y sigue al cursor con retraso: la iridiscencia nunca está quieta
     const libre = !calma && ahora - ultimoMov > 3500, s = t / 1000;
     const tx = libre ? W * (0.5 + 0.36 * Math.sin(s * 0.13)) : luzX, ty = libre ? Hh * (0.34 + 0.2 * Math.sin(s * 0.09 + 1)) : luzY;
-    const kL = calma ? 1 : 1 - Math.exp(-dt * 2.2); lx += (tx - lx) * kL; ly += (ty - ly) * kL;
+    const kL = calma ? 1 : 1 - Math.exp(-dt * 2.2), luz = Math.abs(tx - lx) + Math.abs(ty - ly); lx += (tx - lx) * kL; ly += (ty - ly) * kL;
     gl.U.uLight.value.set(lx, ly); gl.U.uTime.value = calma ? 0 : s;
     if (!estaba || !quieto) colocar();
-    if (!(estaba && quieto && S.lente === "grupos" && enEscena())) gl.render();   // con los grupos en escena y la cola ya abajo, el abanico no se pinta
+    // con los grupos en escena y la cola ya abajo, el abanico no se pinta; sin movimiento (calma) tampoco, si nada cambió
+    if (!(estaba && quieto && ((S.lente === "grupos" && enEscena()) || (calma && luz < 0.5)))) gl.render();
     rafId = requestAnimationFrame(cuadro);
   }
 

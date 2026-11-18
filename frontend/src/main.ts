@@ -37,13 +37,21 @@ async function herramientasQueFaltan() {
   return faltan;
 }
 
-// leer = false: solo cambió la pestaña, los datos son los mismos
-async function remontar(st: AppState, leer = true) {
+// leer = false: solo cambió la pestaña, los datos son los mismos.
+// quieta: la vista nueva entra ya en su sitio, sin transiciones hasta pintar su primer cuadro (si no, los rótulos y paneles
+// nuevos parten de ocultos y parpadean). Al entrar o salir de un grupo no: ahí el fundido entre lentes es parte del paso.
+let remontes = 0;
+async function remontar(st: AppState, leer = true, quieta = true) {
   if (leer) [, faltan] = await Promise.all([leerCategorias(), herramientasQueFaltan()]);
+  if (vista && quieta) {
+    const n = ++remontes;
+    document.body.classList.add("remonta");
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (n === remontes) document.body.classList.remove("remonta"); }));
+  }
   vista?.destruir();
+  const lienzoG = capa.querySelector("#vgrupos canvas"); // los lienzos se conservan: cada uno guarda su contexto WebGL (pluma.js)
   capa.innerHTML = esqueleto;
-  const viejo = document.querySelector("#gl")!, lienzo = viejo.cloneNode() as HTMLCanvasElement; // un lienzo nuevo: el contexto WebGL anterior se soltó
-  viejo.replaceWith(lienzo);
+  if (lienzoG) capa.querySelector("#vgrupos canvas")!.replaceWith(lienzoG);
   const modelo = armar({ devices: st.devices, stats: st.stats, hostInfo: st.hostInfo, categorias, faltan, pestana, nueva, grupo, pagina });
   grupo = modelo.grupo; pagina = modelo.pagina; // un grupo que ya no tiene equipos se olvida
   vista = montar({ ...modelo, plano: await plano }, {
@@ -71,7 +79,7 @@ async function remontar(st: AppState, leer = true) {
     grupo(tipo, p) {
       const de = grupo;
       grupo = tipo; pagina = p;
-      remontar(scanState.getState(), false).then(() => {
+      remontar(scanState.getState(), false, false).then(() => {
         if (escaneo) vista!.enCurso(escaneo);
         // al entrar, el foco va a la primera pluma; al volver, a la pluma del grupo de donde se vino
         document.querySelector<HTMLElement>(tipo ? "#ojos .ojo:not([hidden])" : `#vgrupos .ojo[data-g="${de}"]`)?.focus({ preventScroll: true });
