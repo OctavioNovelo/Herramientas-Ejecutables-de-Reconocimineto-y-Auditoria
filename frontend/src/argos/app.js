@@ -255,6 +255,9 @@ export function montar(H, puente) {
   $("#plan-lista").innerHTML = ["riesgo", "alerta", "info"].map((p) => { const l = H.plan.map((a, n) => [a, n]).filter(([a]) => a.prioridad === p); return `<h3>${PRIO_TXT[p]} <b>${l.length}</b></h3><ul>${l.map(([a, n]) => filaAccion(a, n)).join("")}</ul>`; }).join("");
   $("#urgente-lista").innerHTML = H.plan.slice(0, 3).map((a, n) => `<li><button class="accion corta" data-a="${n}"><span class="t">${esc(a.titulo)}</span></button></li>`).join("") || '<li class="sub">Nada pendiente.</li>';
   $("#ver-plan").textContent = `Ver el plan, ${H.plan.length} ${H.plan.length === 1 ? "acción" : "acciones"}`; $("#ver-plan").style.display = H.plan.length ? "" : "none";
+  // Volver (dentro de un grupo) va justo debajo de "Ver el plan": medimos el panel, que cambia de alto con sus acciones
+  const bajoUrgente = () => document.documentElement.style.setProperty("--urg-fin", `${$("#urgente").offsetTop + $("#urgente").offsetHeight + 12}px`);
+  bajoUrgente(); addEventListener("resize", bajoUrgente);
   function pintarPlan() { const v = accionViva(); $$(".accion").forEach((b) => { const on = v === H.plan[+b.dataset.a]; b.classList.toggle("viva", on); if (b.hasAttribute("aria-expanded")) b.setAttribute("aria-expanded", on); }); }
   function senalar(a) { if (S.accion === a) return; S.accion = a; objetivos(); pintarPlan(); refGrupos(); }
   for (const cont of [$("#plan"), $("#urgente")]) {
